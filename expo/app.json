@@ -1,11 +1,11 @@
 {
   "expo": {
     "name": "Veloz Maintenance AI",
-    "slug": "pahnsljengphltlh87s0k",
+    "slug": "veloz-fleet",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "rork-app",
+    "scheme": "veloz-maintenance",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -15,14 +15,14 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "app.rork.pahnsljengphltlh87s0k"
+      "bundleIdentifier": "app.veloz.fleet"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "app.rork.pahnsljengphltlh87s0k"
+      "package": "app.veloz.fleet"
     },
     "web": {
       "favicon": "./assets/images/favicon.png"
@@ -30,9 +30,7 @@
     "plugins": [
       [
         "expo-router",
-        {
-          "origin": "https://rork.com/"
-        }
+        {}
       ],
       "expo-font",
       "expo-web-browser"

@@ -4,9 +4,10 @@
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
-    "start": "bunx rork start -p pahnsljengphltlh87s0k --tunnel",
-    "start-web": "bunx rork start -p pahnsljengphltlh87s0k --web --tunnel",
-    "start-web-dev": "DEBUG=expo* bunx rork start -p pahnsljengphltlh87s0k --web --tunnel",
+    "start": "expo start",
+    "start-web": "expo start --web",
+    "start-web-dev": "expo start --web --clear",
+    "build": "expo export --platform web --output-dir web-build",
     "lint": "expo lint"
   },
   "dependencies": {
