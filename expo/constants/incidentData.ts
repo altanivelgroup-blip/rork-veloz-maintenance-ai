@@ -22,6 +22,17 @@ export type IncidentType =
 
 export type IncidentEquipmentKind = "truck" | "trailer";
 
+/** A single entry on an incident's activity timeline. */
+export type IncidentEvent = {
+  id: string;
+  /** Workflow state this event represents, or a free-form action. */
+  kind: "reported" | "in_review" | "resolved" | "note";
+  label: string;
+  detail?: string;
+  by: string;
+  at: string; // ISO date
+};
+
 export type Incident = {
   id: string;
   /** Human-facing reference code, e.g. INC-2041. */
@@ -41,6 +52,11 @@ export type Incident = {
   reportedAt: string; // ISO date
   /** Future Firestore Storage refs — placeholder count for Phase 1. */
   photos: number;
+  /** Chronological activity log driving the detail timeline. */
+  timeline?: IncidentEvent[];
+  /** Resolution note captured when the incident is closed out. */
+  resolutionNote?: string;
+  resolvedAt?: string;
 };
 
 export const INCIDENT_TYPE_LABEL: Record<IncidentType, string> = {
@@ -90,6 +106,10 @@ export const INCIDENTS: Incident[] = [
     reportedBy: "J. Carter",
     reportedAt: "2026-05-18",
     photos: 3,
+    timeline: [
+      { id: "e1", kind: "reported", label: "Incident reported", detail: "Driver pulled off near Abilene after temp warning.", by: "J. Carter", at: "2026-05-18" },
+      { id: "e2", kind: "note", label: "Towed to yard", detail: "Unit flat-bedded to Fort Worth yard overnight.", by: "Dispatch", at: "2026-05-18" },
+    ],
   },
   {
     id: "inc2",
@@ -108,6 +128,10 @@ export const INCIDENTS: Incident[] = [
     reportedBy: "M. Reyes",
     reportedAt: "2026-05-16",
     photos: 4,
+    timeline: [
+      { id: "e1", kind: "reported", label: "Incident reported", detail: "Inner tire blew at highway speed, no injuries.", by: "M. Reyes", at: "2026-05-16" },
+      { id: "e2", kind: "in_review", label: "Moved to review", detail: "Tire vendor quote requested for replacement set.", by: "Maintenance", at: "2026-05-17" },
+    ],
   },
   {
     id: "inc3",
@@ -178,6 +202,12 @@ export const INCIDENTS: Incident[] = [
     reportedBy: "M. Reyes",
     reportedAt: "2026-05-04",
     photos: 0,
+    resolvedAt: "2026-05-04",
+    resolutionNote: "Registration renewed electronically same day. No citation issued.",
+    timeline: [
+      { id: "e1", kind: "reported", label: "Incident reported", detail: "Roadside check flagged lapsed registration.", by: "M. Reyes", at: "2026-05-04" },
+      { id: "e2", kind: "resolved", label: "Resolved", detail: "Renewed electronically same day.", by: "Admin", at: "2026-05-04" },
+    ],
   },
   {
     id: "inc7",
@@ -215,6 +245,53 @@ export const INCIDENTS: Incident[] = [
     photos: 0,
   },
 ];
+
+/** Inputs needed to build a brand-new incident from the report flow. */
+export type NewIncidentInput = {
+  title: string;
+  summary: string;
+  type: IncidentType;
+  severity: IncidentSeverity;
+  equipmentKind: IncidentEquipmentKind;
+  equipmentId: string;
+  equipmentName: string;
+  location: string;
+  mileage?: number;
+  reportedBy: string;
+  photos: number;
+};
+
+/** Build a fully-formed Incident (with an opening timeline event) from report input. */
+export function buildIncident(input: NewIncidentInput, seq: number): Incident {
+  const today = new Date().toISOString().slice(0, 10);
+  return {
+    id: `inc-${Date.now()}`,
+    code: `INC-${2048 + seq}`,
+    title: input.title,
+    summary: input.summary,
+    type: input.type,
+    severity: input.severity,
+    status: "open",
+    equipmentKind: input.equipmentKind,
+    equipmentId: input.equipmentId,
+    equipmentName: input.equipmentName,
+    location: input.location,
+    mileage: input.mileage,
+    reportedBy: input.reportedBy,
+    reportedAt: today,
+    photos: input.photos,
+    timeline: [
+      {
+        id: `e-${Date.now()}`,
+        kind: "reported",
+        label: "Incident reported",
+        detail: input.summary,
+        by: input.reportedBy,
+        at: today,
+      },
+    ],
+  };
+}
 
 /** Lightweight rollup for the Incident Center header. Pure helper, AI-ready. */
 export function incidentStats(incidents: Incident[]) {

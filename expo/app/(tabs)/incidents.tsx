@@ -1,12 +1,14 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { TriangleAlert } from "lucide-react-native";
+import { router } from "expo-router";
+import { Plus, TriangleAlert } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import IncidentCard from "@/components/IncidentCard";
 import Screen from "@/components/Screen";
 import SectionHeader from "@/components/SectionHeader";
 import { Colors, Gradients } from "@/constants/colors";
-import { INCIDENTS, incidentStats, type IncidentStatus } from "@/constants/incidentData";
+import { type IncidentStatus } from "@/constants/incidentData";
+import { useFleet } from "@/providers/FleetProvider";
 
 type Filter = "all" | IncidentStatus;
 
@@ -18,22 +20,30 @@ const FILTERS: { key: Filter; label: string }[] = [
 ];
 
 export default function IncidentsScreen() {
+  const { incidents, incidentSummary: stats } = useFleet();
   const [filter, setFilter] = useState<Filter>("all");
 
-  const stats = useMemo(() => incidentStats(INCIDENTS), []);
-
   const filtered = useMemo(() => {
-    const list = filter === "all" ? INCIDENTS : INCIDENTS.filter((i) => i.status === filter);
+    const list = filter === "all" ? incidents : incidents.filter((i) => i.status === filter);
     const rank: Record<IncidentStatus, number> = { open: 0, in_review: 1, resolved: 2 };
     return [...list].sort((a, b) => {
       if (rank[a.status] !== rank[b.status]) return rank[a.status] - rank[b.status];
       return a.reportedAt < b.reportedAt ? 1 : -1;
     });
-  }, [filter]);
+  }, [filter, incidents]);
 
   return (
     <Screen>
-      <SectionHeader kicker="Incident Center" title="Fleet Incidents" />
+      <View style={styles.headerRow}>
+        <SectionHeader kicker="Incident Center" title="Fleet Incidents" />
+        <Pressable onPress={() => router.push("/incident/new")} hitSlop={8}>
+          <View style={styles.reportBtn}>
+            <LinearGradient colors={Gradients.blue} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+            <Plus color="#fff" size={16} />
+            <Text style={styles.reportText}>Report</Text>
+          </View>
+        </Pressable>
+      </View>
 
       {/* Summary banner */}
       <View style={styles.banner}>
@@ -73,7 +83,7 @@ export default function IncidentsScreen() {
       {/* List */}
       <View style={styles.list}>
         {filtered.map((incident) => (
-          <IncidentCard key={incident.id} incident={incident} />
+          <IncidentCard key={incident.id} incident={incident} onPress={() => router.push(`/incident/${incident.id}`)} />
         ))}
         {filtered.length === 0 && (
           <View style={styles.empty}>
@@ -96,6 +106,9 @@ function Stat({ label, value, color }: { label: string; value: number; color: st
 }
 
 const styles = StyleSheet.create({
+  headerRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
+  reportBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 13, paddingVertical: 9, borderRadius: 999, overflow: "hidden", marginTop: 2 },
+  reportText: { color: "#fff", fontSize: 12.5, fontWeight: "800", letterSpacing: 0.2 },
   banner: { borderRadius: 20, overflow: "hidden", padding: 16 },
   bannerBorder: { ...StyleSheet.absoluteFillObject, borderRadius: 20, borderWidth: 1, borderColor: Colors.borderHi },
   bannerHead: { flexDirection: "row", alignItems: "center", gap: 12 },

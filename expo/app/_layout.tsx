@@ -28,6 +28,8 @@ function RootLayoutNav() {
       <Stack.Screen name="trailer/[id]" options={{ title: "Trailer Profile" }} />
       <Stack.Screen name="inspection/new" options={{ title: "New Inspection", presentation: "modal" }} />
       <Stack.Screen name="inspection/[id]" options={{ title: "Inspection" }} />
+      <Stack.Screen name="incident/new" options={{ title: "New Incident", presentation: "modal" }} />
+      <Stack.Screen name="incident/[id]" options={{ title: "Incident" }} />
     </Stack>
   );
 }
