@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { BarChart3, ClipboardCheck, Cpu, Truck, Container } from "lucide-react-native";
+import { BarChart3, ClipboardCheck, Cpu, Truck, Container, TriangleAlert } from "lucide-react-native";
 import React from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { BlurView } from "expo-blur";
@@ -58,6 +58,13 @@ export default function TabLayout() {
         options={{
           title: "Inspections",
           tabBarIcon: ({ color, size }) => <ClipboardCheck color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="incidents"
+        options={{
+          title: "Incidents",
+          tabBarIcon: ({ color, size }) => <TriangleAlert color={color} size={size} />,
         }}
       />
       <Tabs.Screen
