@@ -209,6 +209,18 @@ export const DRIVERS: string[] = [
   "R. Alvarez",
 ];
 
+/** Person types for a Driver / Employee Incident — any worker, not just drivers. */
+export const PERSON_TYPES: string[] = [
+  "Driver",
+  "Trainee",
+  "Dispatcher",
+  "Mechanic",
+  "Yard worker",
+  "Office staff",
+  "Cleaning staff",
+  "Other employee",
+];
+
 export const INCIDENTS: Incident[] = [
   {
     id: "inc1",

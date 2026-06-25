@@ -27,6 +27,7 @@ import {
   INCIDENT_CATEGORIES,
   INCIDENT_CATEGORY_META,
   INCIDENT_SEVERITY_META,
+  PERSON_TYPES,
   type IncidentCategory,
   type IncidentSeverity,
 } from "@/constants/incidentData";
@@ -64,6 +65,12 @@ export default function NewIncidentScreen() {
   const [time, setTime] = useState<string>("");
   const [location, setLocation] = useState<string>("");
 
+  // Step 2 — Driver / Employee Incident (person-focused, no equipment required)
+  const [personType, setPersonType] = useState<string>("");
+  const [personName, setPersonName] = useState<string>("");
+  const [personRole, setPersonRole] = useState<string>("");
+  const [vehicleConnected, setVehicleConnected] = useState<boolean | null>(null);
+
   // Step 3 — category-specific
   const [details, setDetails] = useState<Record<string, string>>({});
 
@@ -78,8 +85,13 @@ export default function NewIncidentScreen() {
   const trailer = useMemo(() => trailers.find((t) => t.id === trailerId), [trailers, trailerId]);
   const meta = category ? INCIDENT_CATEGORY_META[category] : null;
   const fields = category ? CATEGORY_FIELDS[category] : [];
+  const isEmployee = category === "driver_employee";
+  /** For employee incidents, equipment is only attached when explicitly linked. */
+  const linkEquipment = !isEmployee || vehicleConnected === true;
 
-  const canContext = driver.trim().length > 0 && location.trim().length > 1 && date.trim().length > 1;
+  const canContext = isEmployee
+    ? personName.trim().length > 0 && date.trim().length > 1 && vehicleConnected !== null
+    : driver.trim().length > 0 && location.trim().length > 1 && date.trim().length > 1;
   const canNarrative = title.trim().length > 1 && summary.trim().length > 1;
 
   function pickCategory(c: IncidentCategory) {
@@ -91,27 +103,37 @@ export default function NewIncidentScreen() {
 
   function submit() {
     if (!category) return;
+    const personLabel = isEmployee ? personName.trim() : driver.trim();
+    const linkedTruck = linkEquipment ? truck : undefined;
+    const linkedTrailer = linkEquipment ? trailer : undefined;
+    const mergedDetails = isEmployee
+      ? {
+          ...details,
+          personType: personType || "Employee",
+          personRole: personRole.trim() || personType || "Employee",
+        }
+      : details;
     const created = addIncident({
       category,
       subtype,
       title: title.trim(),
       summary: summary.trim(),
       severity,
-      driver: driver.trim(),
-      truckId: truck?.id,
-      truckName: truck?.nickname,
-      trailerId: trailer?.id,
-      trailerName: trailer?.nickname,
-      loadNumber: loadNumber.trim() || undefined,
+      driver: personLabel,
+      truckId: linkedTruck?.id,
+      truckName: linkedTruck?.nickname,
+      trailerId: linkedTrailer?.id,
+      trailerName: linkedTrailer?.nickname,
+      loadNumber: linkEquipment ? loadNumber.trim() || undefined : undefined,
       date: date.trim(),
       time: time.trim() || undefined,
       location: location.trim(),
-      mileage: truck ? (truck as { mileage?: number }).mileage : undefined,
+      mileage: linkedTruck ? (linkedTruck as { mileage?: number }).mileage : undefined,
       correctiveAction: correctiveAction.trim() || undefined,
       witnesses: witnesses.trim() || undefined,
-      details,
+      details: mergedDetails,
       photos,
-      reportedBy: driver.trim() || "You",
+      reportedBy: personLabel || "You",
     });
     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     router.replace(`/incident/${created.id}`);
@@ -158,7 +180,116 @@ export default function NewIncidentScreen() {
     );
   }
 
-  // STEP 2 — context
+  // STEP 2 — context (Driver / Employee Incident — person-focused, equipment optional)
+  if (step === "context" && isEmployee) {
+    return (
+      <>
+        <Stack.Screen options={{ title: "New Report" }} />
+        <Screen>
+          <SectionHeader kicker="Step 2 of 5" title="Who was involved?" />
+
+          <Text style={styles.label}>PERSON INVOLVED</Text>
+          <View style={styles.chipWrap}>
+            {PERSON_TYPES.map((p) => {
+              const on = personType === p;
+              return (
+                <Pressable key={p} onPress={() => { setPersonType(p); hap(); }}>
+                  <View style={[styles.selChip, on && styles.selChipOn]}>
+                    <Text style={[styles.selChipText, on && { color: Colors.cyan }]}>{p}</Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <Text style={styles.label}>EMPLOYEE / PERSON NAME</Text>
+          <TextInput placeholder="e.g. J. Carter" placeholderTextColor={Colors.textDim} value={personName} onChangeText={setPersonName} style={styles.input} />
+
+          <Text style={styles.label}>ROLE / TITLE</Text>
+          <TextInput placeholder="e.g. Lead mechanic, Night dispatcher" placeholderTextColor={Colors.textDim} value={personRole} onChangeText={setPersonRole} style={styles.input} />
+
+          <View style={styles.dualBtn}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>DATE</Text>
+              <TextInput placeholder="YYYY-MM-DD" placeholderTextColor={Colors.textDim} value={date} onChangeText={setDate} style={styles.input} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>TIME (OPTIONAL)</Text>
+              <TextInput placeholder="e.g. 14:20" placeholderTextColor={Colors.textDim} value={time} onChangeText={setTime} style={styles.input} />
+            </View>
+          </View>
+
+          <Text style={styles.label}>LOCATION (OPTIONAL)</Text>
+          <TextInput placeholder="e.g. Main office · Fort Worth, TX" placeholderTextColor={Colors.textDim} value={location} onChangeText={setLocation} style={styles.input} />
+
+          <Text style={styles.label}>WAS THIS CONNECTED TO A VEHICLE, TRAILER, OR LOAD?</Text>
+          <View style={styles.dualBtn}>
+            {[
+              { v: true, label: "Yes" },
+              { v: false, label: "No" },
+            ].map((opt) => {
+              const on = vehicleConnected === opt.v;
+              return (
+                <Pressable key={opt.label} style={{ flex: 1 }} onPress={() => { setVehicleConnected(opt.v); hap(); }}>
+                  <View style={[styles.sevBtn, on && { borderColor: Colors.cyan, backgroundColor: "rgba(94,231,255,0.1)" }]}>
+                    <Text style={[styles.sevBtnText, on && { color: Colors.cyan }]}>{opt.label}</Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {vehicleConnected === true && (
+            <>
+              <Text style={styles.label}>TRUCK (OPTIONAL)</Text>
+              <View style={{ gap: 8 }}>
+                {trucks.map((eq) => (
+                  <EquipmentRow
+                    key={eq.id}
+                    kind="truck"
+                    name={eq.nickname}
+                    sub={`${eq.year} ${eq.make} ${eq.model}`}
+                    selected={truckId === eq.id}
+                    onPress={() => { setTruckId(truckId === eq.id ? null : eq.id); hap(); }}
+                  />
+                ))}
+              </View>
+
+              <Text style={styles.label}>TRAILER (OPTIONAL)</Text>
+              <View style={{ gap: 8 }}>
+                {trailers.map((eq) => (
+                  <EquipmentRow
+                    key={eq.id}
+                    kind="trailer"
+                    name={eq.nickname}
+                    sub={`${eq.year} ${eq.make} ${eq.model}`}
+                    selected={trailerId === eq.id}
+                    onPress={() => { setTrailerId(trailerId === eq.id ? null : eq.id); hap(); }}
+                  />
+                ))}
+              </View>
+
+              <Text style={styles.label}>LOAD NUMBER (OPTIONAL)</Text>
+              <TextInput placeholder="e.g. SHP-90241" placeholderTextColor={Colors.textDim} value={loadNumber} onChangeText={setLoadNumber} style={styles.input} />
+            </>
+          )}
+
+          <Pressable disabled={!canContext} onPress={() => { setStep("specific"); hap(); }}>
+            <View style={[styles.primary, !canContext && { opacity: 0.4 }]}>
+              <LinearGradient colors={Gradients.blue} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+              <Text style={styles.primaryText}>Continue</Text>
+              <ChevronRight color="#fff" size={20} />
+            </View>
+          </Pressable>
+          <Pressable onPress={() => setStep("category")}>
+            <Text style={styles.backText}>Back</Text>
+          </Pressable>
+        </Screen>
+      </>
+    );
+  }
+
+  // STEP 2 — context (equipment-centric categories)
   if (step === "context") {
     return (
       <>
@@ -373,7 +504,12 @@ export default function NewIncidentScreen() {
   const sevMeta = INCIDENT_SEVERITY_META[severity];
   const accent = statusMeta[sevMeta.status].color;
   const CatIcon = category ? CATEGORY_ICON[category] : AlertTriangle;
-  const equipmentLabel = truck?.nickname ?? trailer?.nickname ?? "—";
+  const reviewTruck = linkEquipment ? truck : undefined;
+  const reviewTrailer = linkEquipment ? trailer : undefined;
+  const equipmentLabel = reviewTruck?.nickname ?? reviewTrailer?.nickname ?? (isEmployee ? "Not equipment-related" : "—");
+  const personLine = isEmployee
+    ? `${personName}${personRole.trim() ? ` · ${personRole.trim()}` : personType ? ` · ${personType}` : ""}`
+    : driver;
 
   return (
     <>
@@ -397,14 +533,14 @@ export default function NewIncidentScreen() {
         </Card>
 
         <Card>
-          <SummaryRow label="DRIVER / EMPLOYEE" value={driver} />
+          <SummaryRow label={isEmployee ? "PERSON INVOLVED" : "DRIVER / EMPLOYEE"} value={personLine} />
           <View style={styles.divider} />
           <SummaryRow label="EQUIPMENT" value={equipmentLabel} />
           <View style={styles.divider} />
           <SummaryRow label="WHEN" value={`${date}${time ? ` · ${time}` : ""}`} />
           <View style={styles.divider} />
-          <SummaryRow label="LOCATION" value={location} />
-          {loadNumber.trim().length > 0 && (
+          <SummaryRow label="LOCATION" value={location.trim() || "—"} />
+          {linkEquipment && loadNumber.trim().length > 0 && (
             <>
               <View style={styles.divider} />
               <SummaryRow label="LOAD NUMBER" value={loadNumber} />
