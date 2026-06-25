@@ -221,6 +221,16 @@ export const PERSON_TYPES: string[] = [
   "Other employee",
 ];
 
+/** Where a Safety Incident occurred — drives Step 2 of the safety report flow. */
+export const SAFETY_LOCATION_TYPES: string[] = [
+  "Yard",
+  "Roadside",
+  "Customer site",
+  "Shop",
+  "Office",
+  "Other",
+];
+
 export const INCIDENTS: Incident[] = [
   {
     id: "inc1",

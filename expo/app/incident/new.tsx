@@ -28,6 +28,7 @@ import {
   INCIDENT_CATEGORY_META,
   INCIDENT_SEVERITY_META,
   PERSON_TYPES,
+  SAFETY_LOCATION_TYPES,
   type IncidentCategory,
   type IncidentSeverity,
 } from "@/constants/incidentData";
@@ -86,13 +87,101 @@ export default function NewIncidentScreen() {
   const meta = category ? INCIDENT_CATEGORY_META[category] : null;
   const fields = category ? CATEGORY_FIELDS[category] : [];
   const isEmployee = category === "driver_employee";
-  /** For employee incidents, equipment is only attached when explicitly linked. */
-  const linkEquipment = !isEmployee || vehicleConnected === true;
+  const isCustomerCat = category === "cargo_damage" || category === "complaint";
+  /** Accident reports always involve equipment; other categories link it only on demand. */
+  const linkEquipment = category === "accident" ? true : vehicleConnected === true;
 
-  const canContext = isEmployee
-    ? personName.trim().length > 0 && date.trim().length > 1 && vehicleConnected !== null
-    : driver.trim().length > 0 && location.trim().length > 1 && date.trim().length > 1;
+  const setDetail = (key: string, v: string) => setDetails((prev) => ({ ...prev, [key]: v }));
+
+  const canContext = ((): boolean => {
+    switch (category) {
+      case "driver_employee":
+        return personName.trim().length > 0 && date.trim().length > 1 && vehicleConnected !== null;
+      case "safety":
+        return (details.safetyLocationType?.trim().length ?? 0) > 0 && date.trim().length > 1 && vehicleConnected !== null;
+      case "accident":
+        return driver.trim().length > 0 && location.trim().length > 1 && date.trim().length > 1;
+      case "cargo_damage":
+        return loadNumber.trim().length > 0 && date.trim().length > 1 && vehicleConnected !== null;
+      case "complaint":
+        return (details.customer?.trim().length ?? 0) > 0 && date.trim().length > 1 && vehicleConnected !== null;
+      default:
+        return false;
+    }
+  })();
   const canNarrative = title.trim().length > 1 && summary.trim().length > 1;
+
+  const renderYesNo = (label: string) => (
+    <>
+      <Text style={styles.label}>{label}</Text>
+      <View style={styles.dualBtn}>
+        {[
+          { v: true, label: "Yes" },
+          { v: false, label: "No" },
+        ].map((opt) => {
+          const on = vehicleConnected === opt.v;
+          return (
+            <Pressable key={opt.label} style={{ flex: 1 }} onPress={() => { setVehicleConnected(opt.v); hap(); }}>
+              <View style={[styles.sevBtn, on && { borderColor: Colors.cyan, backgroundColor: "rgba(94,231,255,0.1)" }]}>
+                <Text style={[styles.sevBtnText, on && { color: Colors.cyan }]}>{opt.label}</Text>
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
+    </>
+  );
+
+  const renderEquipmentPickers = (showLoad: boolean) => (
+    <>
+      <Text style={styles.label}>TRUCK (OPTIONAL)</Text>
+      <View style={{ gap: 8 }}>
+        {trucks.map((eq) => (
+          <EquipmentRow key={eq.id} kind="truck" name={eq.nickname} sub={`${eq.year} ${eq.make} ${eq.model}`} selected={truckId === eq.id} onPress={() => { setTruckId(truckId === eq.id ? null : eq.id); hap(); }} />
+        ))}
+      </View>
+      <Text style={styles.label}>TRAILER (OPTIONAL)</Text>
+      <View style={{ gap: 8 }}>
+        {trailers.map((eq) => (
+          <EquipmentRow key={eq.id} kind="trailer" name={eq.nickname} sub={`${eq.year} ${eq.make} ${eq.model}`} selected={trailerId === eq.id} onPress={() => { setTrailerId(trailerId === eq.id ? null : eq.id); hap(); }} />
+        ))}
+      </View>
+      {showLoad && (
+        <>
+          <Text style={styles.label}>LOAD NUMBER (OPTIONAL)</Text>
+          <TextInput placeholder="e.g. SHP-90241" placeholderTextColor={Colors.textDim} value={loadNumber} onChangeText={setLoadNumber} style={styles.input} />
+        </>
+      )}
+    </>
+  );
+
+  const dateTimeRow = (
+    <View style={styles.dualBtn}>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.label}>DATE</Text>
+        <TextInput placeholder="YYYY-MM-DD" placeholderTextColor={Colors.textDim} value={date} onChangeText={setDate} style={styles.input} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.label}>TIME (OPTIONAL)</Text>
+        <TextInput placeholder="e.g. 14:20" placeholderTextColor={Colors.textDim} value={time} onChangeText={setTime} style={styles.input} />
+      </View>
+    </View>
+  );
+
+  const stepFooter = (disabled: boolean) => (
+    <>
+      <Pressable disabled={disabled} onPress={() => { setStep("specific"); hap(); }}>
+        <View style={[styles.primary, disabled && { opacity: 0.4 }]}>
+          <LinearGradient colors={Gradients.blue} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+          <Text style={styles.primaryText}>Continue</Text>
+          <ChevronRight color="#fff" size={20} />
+        </View>
+      </Pressable>
+      <Pressable onPress={() => setStep("category")}>
+        <Text style={styles.backText}>Back</Text>
+      </Pressable>
+    </>
+  );
 
   function pickCategory(c: IncidentCategory) {
     setCategory(c);
@@ -222,82 +311,62 @@ export default function NewIncidentScreen() {
           <Text style={styles.label}>LOCATION (OPTIONAL)</Text>
           <TextInput placeholder="e.g. Main office · Fort Worth, TX" placeholderTextColor={Colors.textDim} value={location} onChangeText={setLocation} style={styles.input} />
 
-          <Text style={styles.label}>WAS THIS CONNECTED TO A VEHICLE, TRAILER, OR LOAD?</Text>
-          <View style={styles.dualBtn}>
-            {[
-              { v: true, label: "Yes" },
-              { v: false, label: "No" },
-            ].map((opt) => {
-              const on = vehicleConnected === opt.v;
+          {renderYesNo("WAS THIS CONNECTED TO A VEHICLE, TRAILER, OR LOAD?")}
+
+          {vehicleConnected === true && renderEquipmentPickers(true)}
+
+          {stepFooter(!canContext)}
+        </Screen>
+      </>
+    );
+  }
+
+  // STEP 2 — Safety Incident (location-focused, equipment optional)
+  if (step === "context" && category === "safety") {
+    return (
+      <>
+        <Stack.Screen options={{ title: "New Report" }} />
+        <Screen>
+          <SectionHeader kicker="Step 2 of 5" title="Where did the safety issue occur?" />
+
+          <Text style={styles.label}>SAFETY LOCATION TYPE</Text>
+          <View style={styles.chipWrap}>
+            {SAFETY_LOCATION_TYPES.map((p) => {
+              const on = (details.safetyLocationType ?? "") === p;
               return (
-                <Pressable key={opt.label} style={{ flex: 1 }} onPress={() => { setVehicleConnected(opt.v); hap(); }}>
-                  <View style={[styles.sevBtn, on && { borderColor: Colors.cyan, backgroundColor: "rgba(94,231,255,0.1)" }]}>
-                    <Text style={[styles.sevBtnText, on && { color: Colors.cyan }]}>{opt.label}</Text>
+                <Pressable key={p} onPress={() => { setDetail("safetyLocationType", p); hap(); }}>
+                  <View style={[styles.selChip, on && styles.selChipOn]}>
+                    <Text style={[styles.selChipText, on && { color: Colors.cyan }]}>{p}</Text>
                   </View>
                 </Pressable>
               );
             })}
           </View>
 
-          {vehicleConnected === true && (
-            <>
-              <Text style={styles.label}>TRUCK (OPTIONAL)</Text>
-              <View style={{ gap: 8 }}>
-                {trucks.map((eq) => (
-                  <EquipmentRow
-                    key={eq.id}
-                    kind="truck"
-                    name={eq.nickname}
-                    sub={`${eq.year} ${eq.make} ${eq.model}`}
-                    selected={truckId === eq.id}
-                    onPress={() => { setTruckId(truckId === eq.id ? null : eq.id); hap(); }}
-                  />
-                ))}
-              </View>
+          <Text style={styles.label}>LOCATION DESCRIPTION (OPTIONAL)</Text>
+          <TextInput placeholder="e.g. Bay 3 · Fort Worth yard" placeholderTextColor={Colors.textDim} value={location} onChangeText={setLocation} style={styles.input} />
 
-              <Text style={styles.label}>TRAILER (OPTIONAL)</Text>
-              <View style={{ gap: 8 }}>
-                {trailers.map((eq) => (
-                  <EquipmentRow
-                    key={eq.id}
-                    kind="trailer"
-                    name={eq.nickname}
-                    sub={`${eq.year} ${eq.make} ${eq.model}`}
-                    selected={trailerId === eq.id}
-                    onPress={() => { setTrailerId(trailerId === eq.id ? null : eq.id); hap(); }}
-                  />
-                ))}
-              </View>
+          {dateTimeRow}
 
-              <Text style={styles.label}>LOAD NUMBER (OPTIONAL)</Text>
-              <TextInput placeholder="e.g. SHP-90241" placeholderTextColor={Colors.textDim} value={loadNumber} onChangeText={setLoadNumber} style={styles.input} />
-            </>
-          )}
+          {renderYesNo("WAS EQUIPMENT INVOLVED?")}
 
-          <Pressable disabled={!canContext} onPress={() => { setStep("specific"); hap(); }}>
-            <View style={[styles.primary, !canContext && { opacity: 0.4 }]}>
-              <LinearGradient colors={Gradients.blue} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
-              <Text style={styles.primaryText}>Continue</Text>
-              <ChevronRight color="#fff" size={20} />
-            </View>
-          </Pressable>
-          <Pressable onPress={() => setStep("category")}>
-            <Text style={styles.backText}>Back</Text>
-          </Pressable>
+          {vehicleConnected === true && renderEquipmentPickers(false)}
+
+          {stepFooter(!canContext)}
         </Screen>
       </>
     );
   }
 
-  // STEP 2 — context (equipment-centric categories)
-  if (step === "context") {
+  // STEP 2 — Accident Report (vehicle/equipment-centric)
+  if (step === "context" && category === "accident") {
     return (
       <>
         <Stack.Screen options={{ title: "New Report" }} />
         <Screen>
-          <SectionHeader kicker="Step 2 of 5" title="Who & what was involved?" />
+          <SectionHeader kicker="Step 2 of 5" title="Which vehicle/equipment was involved?" />
 
-          <Text style={styles.label}>DRIVER / EMPLOYEE</Text>
+          <Text style={styles.label}>DRIVER</Text>
           <View style={styles.chipWrap}>
             {DRIVERS.map((d) => {
               const on = driver === d;
@@ -311,61 +380,91 @@ export default function NewIncidentScreen() {
             })}
           </View>
 
-          <Text style={styles.label}>TRUCK (OPTIONAL)</Text>
-          <View style={{ gap: 8 }}>
-            {trucks.map((eq) => (
-              <EquipmentRow
-                key={eq.id}
-                kind="truck"
-                name={eq.nickname}
-                sub={`${eq.year} ${eq.make} ${eq.model}`}
-                selected={truckId === eq.id}
-                onPress={() => { setTruckId(truckId === eq.id ? null : eq.id); hap(); }}
-              />
-            ))}
-          </View>
+          {renderEquipmentPickers(true)}
 
-          <Text style={styles.label}>TRAILER (OPTIONAL)</Text>
-          <View style={{ gap: 8 }}>
-            {trailers.map((eq) => (
-              <EquipmentRow
-                key={eq.id}
-                kind="trailer"
-                name={eq.nickname}
-                sub={`${eq.year} ${eq.make} ${eq.model}`}
-                selected={trailerId === eq.id}
-                onPress={() => { setTrailerId(trailerId === eq.id ? null : eq.id); hap(); }}
-              />
-            ))}
-          </View>
+          {dateTimeRow}
 
-          <Text style={styles.label}>LOAD NUMBER (OPTIONAL)</Text>
-          <TextInput placeholder="e.g. SHP-90241" placeholderTextColor={Colors.textDim} value={loadNumber} onChangeText={setLoadNumber} style={styles.input} />
+          <Text style={styles.label}>ACCIDENT LOCATION</Text>
+          <TextInput placeholder="e.g. I-20 W · Abilene, TX" placeholderTextColor={Colors.textDim} value={location} onChangeText={setLocation} style={styles.input} />
+
+          {stepFooter(!canContext)}
+        </Screen>
+      </>
+    );
+  }
+
+  // STEP 2 — Cargo Damage (shipment-focused, equipment optional)
+  if (step === "context" && category === "cargo_damage") {
+    return (
+      <>
+        <Stack.Screen options={{ title: "New Report" }} />
+        <Screen>
+          <SectionHeader kicker="Step 2 of 5" title="Which shipment or cargo was affected?" />
+
+          <Text style={styles.label}>SHIPMENT / LOAD NUMBER</Text>
+          <TextInput placeholder="e.g. SHP-90214" placeholderTextColor={Colors.textDim} value={loadNumber} onChangeText={setLoadNumber} style={styles.input} />
+
+          <Text style={styles.label}>CUSTOMER NAME</Text>
+          <TextInput placeholder="e.g. Lone Star Auto Group" placeholderTextColor={Colors.textDim} value={details.customer ?? ""} onChangeText={(v) => setDetail("customer", v)} style={styles.input} />
+
+          <Text style={styles.label}>CARGO DESCRIPTION</Text>
+          <TextInput placeholder="e.g. 2024 SUV, white" placeholderTextColor={Colors.textDim} value={details.cargoDescription ?? ""} onChangeText={(v) => setDetail("cargoDescription", v)} style={[styles.input, { minHeight: 70 }]} multiline />
+
+          <Text style={styles.label}>PICKUP OR DELIVERY LOCATION (OPTIONAL)</Text>
+          <TextInput placeholder="e.g. Delivery · Dallas, TX" placeholderTextColor={Colors.textDim} value={location} onChangeText={setLocation} style={styles.input} />
 
           <View style={styles.dualBtn}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.label}>DATE</Text>
+              <Text style={styles.label}>DATE DISCOVERED</Text>
               <TextInput placeholder="YYYY-MM-DD" placeholderTextColor={Colors.textDim} value={date} onChangeText={setDate} style={styles.input} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.label}>TIME (OPTIONAL)</Text>
-              <TextInput placeholder="e.g. 14:20" placeholderTextColor={Colors.textDim} value={time} onChangeText={setTime} style={styles.input} />
+              <TextInput placeholder="e.g. 11:30" placeholderTextColor={Colors.textDim} value={time} onChangeText={setTime} style={styles.input} />
             </View>
           </View>
 
-          <Text style={styles.label}>LOCATION</Text>
-          <TextInput placeholder="e.g. I-20 W · Abilene, TX" placeholderTextColor={Colors.textDim} value={location} onChangeText={setLocation} style={styles.input} />
+          {renderYesNo("WAS TRUCK / TRAILER INVOLVED?")}
 
-          <Pressable disabled={!canContext} onPress={() => { setStep("specific"); hap(); }}>
-            <View style={[styles.primary, !canContext && { opacity: 0.4 }]}>
-              <LinearGradient colors={Gradients.blue} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
-              <Text style={styles.primaryText}>Continue</Text>
-              <ChevronRight color="#fff" size={20} />
-            </View>
-          </Pressable>
-          <Pressable onPress={() => setStep("category")}>
-            <Text style={styles.backText}>Back</Text>
-          </Pressable>
+          {vehicleConnected === true && renderEquipmentPickers(false)}
+
+          {stepFooter(!canContext)}
+        </Screen>
+      </>
+    );
+  }
+
+  // STEP 2 — Customer Complaint (customer-focused, equipment optional)
+  if (step === "context") {
+    return (
+      <>
+        <Stack.Screen options={{ title: "New Report" }} />
+        <Screen>
+          <SectionHeader kicker="Step 2 of 5" title="Who made the complaint?" />
+
+          <Text style={styles.label}>CUSTOMER NAME</Text>
+          <TextInput placeholder="e.g. Premier Motors" placeholderTextColor={Colors.textDim} value={details.customer ?? ""} onChangeText={(v) => setDetail("customer", v)} style={styles.input} />
+
+          <Text style={styles.label}>CONTACT PERSON</Text>
+          <TextInput placeholder="e.g. Operations manager" placeholderTextColor={Colors.textDim} value={details.contactPerson ?? ""} onChangeText={(v) => setDetail("contactPerson", v)} style={styles.input} />
+
+          <Text style={styles.label}>CONTACT PHONE / EMAIL (OPTIONAL)</Text>
+          <TextInput placeholder="e.g. dispatch@premier.com" placeholderTextColor={Colors.textDim} value={details.contactInfo ?? ""} onChangeText={(v) => setDetail("contactInfo", v)} style={styles.input} />
+
+          <Text style={styles.label}>SHIPMENT / LOAD NUMBER (OPTIONAL)</Text>
+          <TextInput placeholder="e.g. SHP-90188" placeholderTextColor={Colors.textDim} value={loadNumber} onChangeText={setLoadNumber} style={styles.input} />
+
+          <Text style={styles.label}>COMPLAINT LOCATION (OPTIONAL)</Text>
+          <TextInput placeholder="e.g. Downtown · Dallas, TX" placeholderTextColor={Colors.textDim} value={location} onChangeText={setLocation} style={styles.input} />
+
+          <Text style={styles.label}>DATE RECEIVED</Text>
+          <TextInput placeholder="YYYY-MM-DD" placeholderTextColor={Colors.textDim} value={date} onChangeText={setDate} style={styles.input} />
+
+          {renderYesNo("WAS A VEHICLE / EQUIPMENT INVOLVED?")}
+
+          {vehicleConnected === true && renderEquipmentPickers(false)}
+
+          {stepFooter(!canContext)}
         </Screen>
       </>
     );
