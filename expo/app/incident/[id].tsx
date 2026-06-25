@@ -2,22 +2,23 @@ import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import {
-  AlertOctagon,
   AlertTriangle,
-  BatteryWarning,
   Camera,
   CarFront,
   CircleCheck,
-  CircleDot,
+  ClipboardCheck,
   Container,
-  Disc3,
   FileText,
   Gauge,
+  HardHat,
   MapPin,
+  MessageSquareWarning,
+  PackageX,
+  Package,
   ShieldAlert,
   Truck,
   User,
-  Wrench,
+  Users,
   type LucideIcon,
 } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
@@ -27,23 +28,22 @@ import Screen from "@/components/Screen";
 import SectionHeader from "@/components/SectionHeader";
 import { Colors, Gradients, statusMeta } from "@/constants/colors";
 import {
+  CATEGORY_FIELDS,
+  INCIDENT_CATEGORY_META,
   INCIDENT_SEVERITY_META,
   INCIDENT_STATUS_META,
-  INCIDENT_TYPE_LABEL,
   type Incident,
+  type IncidentCategory,
   type IncidentStatus,
 } from "@/constants/incidentData";
 import { useFleet } from "@/providers/FleetProvider";
 
-const TYPE_ICON: Record<Incident["type"], LucideIcon> = {
-  breakdown: AlertOctagon,
-  tire: Disc3,
-  brakes: CircleDot,
-  electrical: BatteryWarning,
+const CATEGORY_ICON: Record<IncidentCategory, LucideIcon> = {
+  driver_employee: HardHat,
+  safety: ShieldAlert,
   accident: CarFront,
-  mechanical: Wrench,
-  compliance: ShieldAlert,
-  other: AlertTriangle,
+  cargo_damage: PackageX,
+  complaint: MessageSquareWarning,
 };
 
 function hap() {
@@ -72,9 +72,12 @@ export default function IncidentDetail() {
     );
   }
 
-  const Icon = TYPE_ICON[incident.type];
+  const Icon = CATEGORY_ICON[incident.category];
   const EqIcon = incident.equipmentKind === "truck" ? Truck : Container;
   const sev = INCIDENT_SEVERITY_META[incident.severity];
+  const categoryMeta = INCIDENT_CATEGORY_META[incident.category];
+  const fieldDefs = CATEGORY_FIELDS[incident.category];
+  const detailRows = fieldDefs.filter((f) => (incident.details?.[f.key] ?? "").trim().length > 0);
 
   function advance(status: IncidentStatus) {
     if (!incident) return;
@@ -98,6 +101,7 @@ export default function IncidentDetail() {
               <Text style={[styles.sevText, { color: accent }]}>{sev.label.toUpperCase()}</Text>
             </View>
           </View>
+          <Text style={styles.catTag}>{categoryMeta.label} · {incident.subtype}</Text>
           <Text style={styles.heroTitle}>{incident.title}</Text>
           <Text style={styles.heroSummary}>{incident.summary}</Text>
           <View style={styles.statusRow}>
@@ -106,7 +110,7 @@ export default function IncidentDetail() {
                 {INCIDENT_STATUS_META[incident.status].label}
               </Text>
             </View>
-            <Text style={styles.tag}>{INCIDENT_TYPE_LABEL[incident.type]}</Text>
+            <Text style={styles.tag}>{categoryMeta.short}</Text>
           </View>
         </Card>
 
@@ -114,21 +118,69 @@ export default function IncidentDetail() {
         <Card>
           <View style={styles.metaHead}>
             <View style={[styles.eqBubble]}>
-              <EqIcon color={Colors.cyan} size={18} />
+              <User color={Colors.cyan} size={18} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.kicker}>{incident.equipmentKind === "truck" ? "TRUCK" : "TRAILER"}</Text>
-              <Text style={styles.eqName}>{incident.equipmentName}</Text>
+              <Text style={styles.kicker}>DRIVER / EMPLOYEE</Text>
+              <Text style={styles.eqName}>{incident.driver}</Text>
             </View>
           </View>
           <View style={styles.divider} />
+          {incident.truckName && <MetaRow icon={Truck} label="Truck" value={incident.truckName} />}
+          {incident.trailerName && <MetaRow icon={Container} label="Trailer" value={incident.trailerName} />}
+          {incident.loadNumber && <MetaRow icon={Package} label="Load #" value={incident.loadNumber} />}
           <MetaRow icon={MapPin} label="Location" value={incident.location} />
+          <MetaRow icon={FileText} label="Occurred" value={`${incident.date}${incident.time ? ` · ${incident.time}` : ""}`} />
           {incident.mileage !== undefined && (
             <MetaRow icon={Gauge} label="Mileage" value={`${incident.mileage.toLocaleString()} mi`} />
           )}
           <MetaRow icon={User} label="Reported by" value={`${incident.reportedBy} · ${incident.reportedAt}`} />
           <MetaRow icon={Camera} label="Evidence" value={`${incident.photos} photo${incident.photos !== 1 ? "s" : ""} attached`} />
         </Card>
+
+        {/* Category-specific report fields */}
+        {detailRows.length > 0 && (
+          <>
+            <SectionHeader kicker="Report Detail" title={`${categoryMeta.short} Fields`} />
+            <Card>
+              {detailRows.map((f, idx) => (
+                <View key={f.key}>
+                  {idx > 0 && <View style={styles.divider} />}
+                  <Text style={styles.fieldLabel}>{f.label.toUpperCase()}</Text>
+                  <Text style={styles.fieldValue}>{incident.details[f.key]}</Text>
+                </View>
+              ))}
+            </Card>
+          </>
+        )}
+
+        {/* Narrative — corrective action & witnesses */}
+        {(incident.correctiveAction || incident.witnesses) && (
+          <>
+            <SectionHeader kicker="Narrative" title="Action & Witnesses" />
+            <Card>
+              {incident.correctiveAction ? (
+                <View style={styles.narrRow}>
+                  <ClipboardCheck color={Colors.cyan} size={16} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fieldLabel}>CORRECTIVE ACTION</Text>
+                    <Text style={styles.narrText}>{incident.correctiveAction}</Text>
+                  </View>
+                </View>
+              ) : null}
+              {incident.correctiveAction && incident.witnesses ? <View style={styles.divider} /> : null}
+              {incident.witnesses ? (
+                <View style={styles.narrRow}>
+                  <Users color={Colors.electric} size={16} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fieldLabel}>WITNESSES</Text>
+                    <Text style={styles.narrText}>{incident.witnesses}</Text>
+                  </View>
+                </View>
+              ) : null}
+            </Card>
+          </>
+        )}
 
         {/* Timeline */}
         <SectionHeader kicker="Activity" title="Incident Timeline" />
@@ -254,7 +306,8 @@ const styles = StyleSheet.create({
   sevPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, borderWidth: 1 },
   sevDot: { width: 7, height: 7, borderRadius: 99 },
   sevText: { fontSize: 10, fontWeight: "800", letterSpacing: 0.6 },
-  heroTitle: { color: Colors.text, fontSize: 20, fontWeight: "800", letterSpacing: -0.3, marginTop: 14 },
+  catTag: { color: Colors.cyan, fontSize: 11.5, fontWeight: "800", letterSpacing: 0.3, marginTop: 14 },
+  heroTitle: { color: Colors.text, fontSize: 20, fontWeight: "800", letterSpacing: -0.3, marginTop: 6 },
   heroSummary: { color: Colors.textMuted, fontSize: 13, lineHeight: 19, marginTop: 8 },
   statusRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 14 },
   statusChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, borderWidth: 1 },
@@ -281,6 +334,10 @@ const styles = StyleSheet.create({
   tlBy: { color: Colors.textDim, fontSize: 11, fontWeight: "700", marginTop: 5 },
 
   resText: { color: Colors.text, fontSize: 13.5, lineHeight: 20, marginTop: 8, fontWeight: "600" },
+  fieldLabel: { color: Colors.textMuted, fontSize: 10, fontWeight: "800", letterSpacing: 1.2 },
+  fieldValue: { color: Colors.text, fontSize: 14, fontWeight: "700", marginTop: 5 },
+  narrRow: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
+  narrText: { color: Colors.text, fontSize: 13.5, lineHeight: 20, marginTop: 5, fontWeight: "600" },
 
   label: { color: Colors.textMuted, fontSize: 10, letterSpacing: 1.4, fontWeight: "800" },
   noteInput: { color: Colors.text, fontSize: 13, padding: 12, marginTop: 10, backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 12, borderWidth: 1, borderColor: Colors.border, minHeight: 64 },

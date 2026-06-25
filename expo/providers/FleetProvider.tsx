@@ -59,6 +59,11 @@ export const [FleetProvider, useFleet] = createContextHook(() => {
     return incident;
   }, [incidents.length]);
 
+  const incidentsByEquipment = useCallback(
+    (equipmentId: string) => incidents.filter((i) => i.truckId === equipmentId || i.trailerId === equipmentId),
+    [incidents],
+  );
+
   const updateIncidentStatus = useCallback(
     (id: string, status: IncidentStatus, note?: string) => {
       const today = new Date().toISOString().slice(0, 10);
@@ -105,6 +110,7 @@ export const [FleetProvider, useFleet] = createContextHook(() => {
     addIncident,
     updateIncidentStatus,
     getIncident,
+    incidentsByEquipment,
     getTruck,
     getTrailer,
     fleetHealth,

@@ -1,17 +1,15 @@
 import {
-  AlertOctagon,
-  AlertTriangle,
-  BatteryWarning,
   Camera,
   CarFront,
   ChevronRight,
-  CircleDot,
   Container,
-  Disc3,
+  HardHat,
   MapPin,
+  MessageSquareWarning,
+  PackageX,
   ShieldAlert,
   Truck,
-  Wrench,
+  User,
   type LucideIcon,
 } from "lucide-react-native";
 import React from "react";
@@ -19,21 +17,19 @@ import { StyleSheet, Text, View } from "react-native";
 import Card from "@/components/Card";
 import { Colors, statusMeta } from "@/constants/colors";
 import {
+  INCIDENT_CATEGORY_META,
   INCIDENT_SEVERITY_META,
   INCIDENT_STATUS_META,
-  INCIDENT_TYPE_LABEL,
   type Incident,
+  type IncidentCategory,
 } from "@/constants/incidentData";
 
-const TYPE_ICON: Record<Incident["type"], LucideIcon> = {
-  breakdown: AlertOctagon,
-  tire: Disc3,
-  brakes: CircleDot,
-  electrical: BatteryWarning,
+const CATEGORY_ICON: Record<IncidentCategory, LucideIcon> = {
+  driver_employee: HardHat,
+  safety: ShieldAlert,
   accident: CarFront,
-  mechanical: Wrench,
-  compliance: ShieldAlert,
-  other: AlertTriangle,
+  cargo_damage: PackageX,
+  complaint: MessageSquareWarning,
 };
 
 export default function IncidentCard({
@@ -45,7 +41,7 @@ export default function IncidentCard({
 }) {
   const sev = INCIDENT_SEVERITY_META[incident.severity];
   const accent = statusMeta[sev.status].color;
-  const Icon = TYPE_ICON[incident.type];
+  const Icon = CATEGORY_ICON[incident.category];
   const EqIcon = incident.equipmentKind === "truck" ? Truck : Container;
   const resolved = incident.status === "resolved";
 
@@ -75,8 +71,12 @@ export default function IncidentCard({
 
       <View style={styles.metaRow}>
         <View style={styles.metaItem}>
-          <EqIcon color={Colors.electric} size={13} />
-          <Text style={styles.metaText}>{incident.equipmentName}</Text>
+          <User color={Colors.electric} size={13} />
+          <Text style={styles.metaText} numberOfLines={1}>{incident.driver}</Text>
+        </View>
+        <View style={styles.metaItem}>
+          <EqIcon color={Colors.textMuted} size={13} />
+          <Text style={styles.metaText} numberOfLines={1}>{incident.equipmentName}</Text>
         </View>
         <View style={styles.metaItem}>
           <MapPin color={Colors.textMuted} size={13} />
@@ -93,7 +93,7 @@ export default function IncidentCard({
               {INCIDENT_STATUS_META[incident.status].label}
             </Text>
           </View>
-          <Text style={styles.tag}>{INCIDENT_TYPE_LABEL[incident.type]}</Text>
+          <Text style={styles.tag}>{INCIDENT_CATEGORY_META[incident.category].short}</Text>
         </View>
         <View style={styles.footRight}>
           {incident.photos > 0 && (
