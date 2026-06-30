@@ -4,10 +4,14 @@ import { useCallback, useMemo, useState } from "react";
 import {
   TRUCKS, TRAILERS, INSPECTIONS, FLEET_AI, DRIVERS,
   getInspectionStatus, INSPECTION_EXPIRY_HOURS,
+  calcServiceUrgency, checkWarrantyCoverage,
   type Truck, type Trailer, type Inspection, type Driver,
   type AvailabilityState, type RoadReadyStatus,
   type EquipmentSession, type SessionHistoryEntry,
   type SessionModification, type CargoItem,
+  type RepairRecord, type RepairLineItem,
+  type ServiceScheduleConfig, type ServiceUrgency, type PMLevel,
+  type WarrantyProfile, type MaintenanceLockState,
 } from "@/constants/mockData";
 import {
   INCIDENTS,
@@ -286,10 +290,31 @@ export const [FleetProvider, useFleet] = createContextHook(() => {
       if (truck.roadReadyStatus === "out_of_service") {
         return { ok: false, error: "Cannot create session: truck is Out of Service (Dead-Red)." };
       }
+      // Inline maintenance lock check (static import, avoids callback ordering)
+      const checkMaintenanceLock = (eqId: string, kind: string): string | null => {
+        const eq = [...trucks, ...trailers].find((e) => e.id === eqId);
+        if (!eq?.serviceSchedules) return null;
+        const mileage = ("mileage" in eq ? (eq as Truck).mileage : 0);
+        for (const s of eq.serviceSchedules) {
+          const r = calcServiceUrgency(s, mileage);
+          if (r.urgency === "critical_lockout") {
+            return `${kind} locked out: ${s.label} expired — mandatory safety clearance required. Contact Fleet Maintenance immediately.`;
+          }
+        }
+        return null;
+      };
+      const truckLock = checkMaintenanceLock(params.truckId, "Truck");
+      if (truckLock) {
+        return { ok: false, error: `Dispatch Blocked: ${truckLock}` };
+      }
       if (params.trailerId) {
         const trailer = trailers.find((t) => t.id === params.trailerId);
         if (trailer?.roadReadyStatus === "out_of_service") {
           return { ok: false, error: "Cannot create session: trailer is Out of Service (Dead-Red)." };
+        }
+        const trailerLock = checkMaintenanceLock(params.trailerId, "Trailer");
+        if (trailerLock) {
+          return { ok: false, error: `Dispatch Blocked: ${trailerLock}` };
         }
       }
 
@@ -468,6 +493,130 @@ export const [FleetProvider, useFleet] = createContextHook(() => {
   );
 
   // ══════════════════════════════════════════════
+  // Maintenance Engine — Service & Warranty
+  // ══════════════════════════════════════════════
+
+  /** Get all repair records for a specific truck or trailer */
+  const getRepairRecords = useCallback(
+    (assetId: string): RepairRecord[] => {
+      const equipment = [...trucks, ...trailers].find((e) => e.id === assetId);
+      return equipment?.repairRecords ?? [];
+    },
+    [trucks, trailers],
+  );
+
+  /** Calculate all PM service urgencies for a given asset */
+  const getServiceUrgency = useCallback(
+    (assetId: string): { schedule: ServiceScheduleConfig; urgency: ServiceUrgency; remainingMiles: number; remainingDays: number; nextDue: string }[] => {
+      const equipment = [...trucks, ...trailers].find((e) => e.id === assetId);
+      if (!equipment?.serviceSchedules) return [];
+      const mileage = ("mileage" in equipment ? (equipment as Truck).mileage : (equipment as Trailer).axles > 0 ? 12000 : 0);
+      return equipment.serviceSchedules.map((s) => {
+        const result = calcServiceUrgency(s, mileage);
+        return { ...result, schedule: s, nextDue: result.nextDue };
+      });
+    },
+    [trucks, trailers],
+  );
+
+  /** Check warranty coverage for a component on a given asset */
+  const getWarrantyCoverage = useCallback(
+    (assetId: string, component: string): { covered: boolean; policyNumber?: string; reason?: string } => {
+      const equipment = [...trucks, ...trailers].find((e) => e.id === assetId);
+      if (!equipment?.warranty) return { covered: false };
+      const mileage = ("mileage" in equipment ? (equipment as Truck).mileage : 0);
+      return checkWarrantyCoverage(equipment.warranty, component, mileage);
+    },
+    [trucks, trailers],
+  );
+
+  /** Determine if an asset is under maintenance lockout */
+  const getMaintenanceLockState = useCallback(
+    (assetId: string): MaintenanceLockState => {
+      const urgencies = getServiceUrgency(assetId);
+      const critical = urgencies.find((u) => u.urgency === "critical_lockout");
+      if (critical) {
+        return { locked: true, reason: `${critical.schedule.label} expired — mandatory safety clearance required`, triggeringSchedule: critical.schedule.level };
+      }
+      return { locked: false, reason: "" };
+    },
+    [getServiceUrgency],
+  );
+
+  /** Fleet-wide maintenance health analytics */
+  const maintenanceHealth = useMemo(() => {
+    const allEquipment = [...trucks, ...trailers];
+    let inShop = 0;
+    let serviceDue = 0;
+    let outOfService = 0;
+    let criticalLockouts = 0;
+    const allUrgencies: { assetId: string; assetName: string; assetKind: "truck" | "trailer"; level: PMLevel; label: string; urgency: ServiceUrgency; remainingMiles: number; remainingDays: number }[] = [];
+
+    allEquipment.forEach((eq) => {
+      const kind: "truck" | "trailer" = "mileage" in eq ? "truck" : "trailer";
+      const urgencies = getServiceUrgency(eq.id);
+      urgencies.forEach((u) => {
+        if (u.urgency === "critical_lockout") criticalLockouts++;
+        if (u.urgency === "overdue") serviceDue++;
+        allUrgencies.push({
+          assetId: eq.id, assetName: eq.nickname, assetKind: kind,
+          level: u.schedule.level, label: u.schedule.label,
+          urgency: u.urgency, remainingMiles: u.remainingMiles, remainingDays: u.remainingDays,
+        });
+      });
+      if (eq.roadReadyStatus === "out_of_service") outOfService++;
+      if (eq.availability === "in_shop") inShop++;
+    });
+
+    // Also count assets whose status is "attention" as "service_due"
+    serviceDue += allEquipment.filter((e) => e.status === "attention").length;
+
+    return {
+      inShop,
+      serviceDue: Math.min(serviceDue, allEquipment.length),
+      outOfService,
+      criticalLockouts,
+      totalAssets: allEquipment.length,
+      allUrgencies,
+    };
+  }, [trucks, trailers, getServiceUrgency]);
+
+  /** Upcoming services sorted by urgency (most urgent first) */
+  const upcomingServices = useMemo(() => {
+    return maintenanceHealth.allUrgencies
+      .filter((u) => u.urgency !== "current")
+      .sort((a, b) => {
+        const order: Record<ServiceUrgency, number> = { critical_lockout: 0, overdue: 1, due_soon: 2, current: 3 };
+        const ao = order[a.urgency] ?? 9;
+        const bo = order[b.urgency] ?? 9;
+        if (ao !== bo) return ao - bo;
+        return a.remainingDays > 0 ? a.remainingDays - (b.remainingDays > 0 ? b.remainingDays : 999) : -1;
+      })
+      .slice(0, 10);
+  }, [maintenanceHealth]);
+
+  /** Average maintenance cost per mile per asset class */
+  const costPerMileByClass = useMemo(() => {
+    const result: { truck: number; trailer: number } = { truck: 0, trailer: 0 };
+
+    const calcForGroup = (items: (Truck | Trailer)[], kind: "truck" | "trailer") => {
+      let totalCost = 0;
+      let totalMiles = 0;
+      items.forEach((eq) => {
+        const records = eq.repairRecords ?? [];
+        records.forEach((r) => { totalCost += r.totalCost; });
+        const m = "mileage" in eq ? (eq as Truck).mileage : 0;
+        if (m > 0) totalMiles += m;
+      });
+      return totalMiles > 0 ? totalCost / totalMiles : 0;
+    };
+
+    result.truck = parseFloat(calcForGroup(trucks, "truck").toFixed(3));
+    result.trailer = parseFloat(calcForGroup(trailers, "trailer").toFixed(3));
+    return result;
+  }, [trucks, trailers]);
+
+  // ══════════════════════════════════════════════
   // Orphan Prevention — collision-checked assignment
   // ══════════════════════════════════════════════
 
@@ -556,5 +705,13 @@ export const [FleetProvider, useFleet] = createContextHook(() => {
     terminateSession,
     getSessionHistoryForAsset,
     getOperatorsForAsset,
+    // Maintenance Engine
+    getRepairRecords,
+    getServiceUrgency,
+    getWarrantyCoverage,
+    getMaintenanceLockState,
+    maintenanceHealth,
+    upcomingServices,
+    costPerMileByClass,
   };
 });

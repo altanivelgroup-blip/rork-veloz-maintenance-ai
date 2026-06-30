@@ -7,6 +7,7 @@ import ActiveSessionMatrix from "@/components/ActiveSessionMatrix";
 import Card from "@/components/Card";
 import HealthGauge from "@/components/HealthGauge";
 import InsightCard from "@/components/InsightCard";
+import MaintenanceDashboard from "@/components/MaintenanceDashboard";
 import Screen from "@/components/Screen";
 import SectionHeader from "@/components/SectionHeader";
 import Sparkline from "@/components/Sparkline";
@@ -79,6 +80,10 @@ export default function DashboardScreen() {
       {/* Active Session Matrix */}
       <SectionHeader kicker="Live Operations" title="Active Session Matrix" />
       <ActiveSessionMatrix sessions={activeSessions} />
+
+      {/* Fleet Maintenance Health */}
+      <SectionHeader kicker="Maintenance" title="Fleet Health Analytics" />
+      <MaintenanceDashboard />
 
       {/* Availability Matrix */}
       <SectionHeader kicker="Dispatch" title="Availability Matrix" />

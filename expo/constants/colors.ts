@@ -29,6 +29,17 @@ export const Colors = {
   red: "#FF5470",
   redSoft: "rgba(255,84,112,0.14)",
 
+  // Service Urgency
+  urgencyGreen: "#22D399",
+  urgencyAmber: "#FFB547",
+  urgencyRed: "#FF5470",
+  urgencyBlinkRed: "#FF3366",
+  urgencyBlinkSoft: "rgba(255,51,102,0.18)",
+
+  // Warranty
+  gold: "#D4AF37",
+  goldSoft: "rgba(212,175,55,0.14)",
+
   // Misc
   white: "#FFFFFF",
   glass: "rgba(255,255,255,0.04)",
@@ -44,6 +55,8 @@ export const Gradients = {
   amber: ["#FFD27A", "#FF9D24"] as const,
   red: ["#FF7A91", "#E2334E"] as const,
   steel: ["#27406B", "#0E1E3A"] as const,
+  gold: ["#E6C84C", "#B8961A"] as const,
+  blinkRed: ["#FF3366", "#CC0033"] as const,
 };
 
 export type StatusKey = "operational" | "attention" | "out";

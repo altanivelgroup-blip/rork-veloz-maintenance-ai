@@ -1,7 +1,7 @@
 import { Stack, useLocalSearchParams, router } from "expo-router";
 import {
   Activity, Calendar, ChevronRight, ClipboardList, Disc, FileText, Info, Layers,
-  Lightbulb, Link as LinkIcon, Ruler, ShieldCheck, Truck, Wrench, Anchor,
+  Lightbulb, Link as LinkIcon, Ruler, ShieldCheck, ShieldAlert, Truck, Wrench, Anchor,
 } from "lucide-react-native";
 import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -15,15 +15,17 @@ import MetricBar from "@/components/MetricBar";
 import RoadReadyBadge from "@/components/RoadReadyBadge";
 import Screen from "@/components/Screen";
 import SectionHeader from "@/components/SectionHeader";
+import ServiceScheduleCard from "@/components/ServiceScheduleCard";
 import StatusBadge from "@/components/StatusBadge";
 import TrailerSilhouette from "@/components/TrailerSilhouette";
+import WarrantyBanner from "@/components/WarrantyBanner";
 import { Colors, statusMeta } from "@/constants/colors";
-import { trailerSubtypeMeta } from "@/constants/mockData";
+import { trailerSubtypeMeta, serviceTypeMeta, serviceProviderMeta } from "@/constants/mockData";
 import { useFleet } from "@/providers/FleetProvider";
 
 export default function TrailerDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { getTrailer, getTruck, getCurrentOperator } = useFleet();
+  const { getTrailer, getTruck, getCurrentOperator, getServiceUrgency, getWarrantyCoverage, getMaintenanceLockState } = useFleet();
   const [blueprintOpen, setBlueprintOpen] = useState(false);
   const trailer = getTrailer(id ?? "");
   if (!trailer) return <Screen><Text style={{ color: Colors.text }}>Trailer not found</Text></Screen>;
@@ -172,23 +174,77 @@ export default function TrailerDetail() {
           <ModuleRow icon={<Wrench color={Colors.cyan} size={16} />} label="Weld inspection" value="Joints & supports" status={trailer.modules.deck.welds} />
         </Card>
 
-        {/* History */}
-        <SectionHeader kicker="History" title="Service Timeline" />
-        <Card>
-          {trailer.history.map((h, idx) => (
-            <View key={h.id}>
-              <View style={{ flexDirection: "row", gap: 12, alignItems: "flex-start" }}>
-                <View style={[styles.histDot, { backgroundColor: h.severity === "fail" ? Colors.red : h.severity === "warn" ? Colors.amber : Colors.cyan }]} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.histType}>{h.type}</Text>
-                  <Text style={styles.histMeta}>{h.date}{h.mileage ? ` · ${h.mileage.toLocaleString()} mi` : ""}{typeof h.cost === "number" ? ` · $${h.cost}` : ""}</Text>
-                  {h.notes && <Text style={styles.histNote}>{h.notes}</Text>}
-                </View>
-              </View>
-              {idx < trailer.history.length - 1 && <View style={styles.histLine} />}
-            </View>
+        {/* Service Schedules */}
+        <SectionHeader kicker="Preventative Maintenance" title="Service Schedules" />
+        <View style={{ gap: 10 }}>
+          {getServiceUrgency(trailer.id).map((s, idx) => (
+            <ServiceScheduleCard
+              key={`${s.schedule.level}-${idx}`}
+              schedule={s.schedule}
+              urgency={s.urgency}
+              remainingMiles={s.remainingMiles}
+              remainingDays={s.remainingDays}
+              nextDue={s.nextDue}
+            />
           ))}
-        </Card>
+        </View>
+
+        {/* Maintenance Lockout Warning */}
+        {getMaintenanceLockState(trailer.id).locked && (
+          <View style={styles.lockoutBanner}>
+            <ShieldAlert color={Colors.urgencyBlinkRed} size={18} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.lockoutTitle}>Maintenance Lockout Active</Text>
+              <Text style={styles.lockoutDesc}>{getMaintenanceLockState(trailer.id).reason}</Text>
+            </View>
+          </View>
+        )}
+
+        {/* Warranty */}
+        <SectionHeader kicker="Coverage" title="Warranty Protection" />
+        <WarrantyBanner warranty={trailer.warranty} />
+
+        {/* History — Repair Records */}
+        <SectionHeader kicker="History" title="Service Timeline" />
+        {trailer.history.length === 0 && trailer.repairRecords.length === 0 ? (
+          <Card><Text style={{ color: Colors.textMuted, fontSize: 13 }}>No service records yet.</Text></Card>
+        ) : (
+          <View style={{ gap: 6 }}>
+            {trailer.repairRecords.map((rec) => (
+              <Card key={rec.recordId}>
+                <View style={styles.repairHeader}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.repairWo}>WO: {rec.workOrderNumber}</Text>
+                    <Text style={styles.repairMeta}>{rec.completionDate}{rec.odometerAtService ? ` · ${rec.odometerAtService.toLocaleString()} mi` : ""} · ${rec.totalCost}</Text>
+                  </View>
+                  <View style={[styles.providerBadge, {
+                    backgroundColor: rec.serviceProvider === "internal" ? "rgba(94,231,255,0.12)" : "rgba(255,181,71,0.12)",
+                    borderColor: rec.serviceProvider === "internal" ? Colors.cyan : Colors.amber,
+                  }]}>
+                    <Text style={[styles.providerText, { color: rec.serviceProvider === "internal" ? Colors.cyan : Colors.amber }]}>
+                      {serviceProviderMeta[rec.serviceProvider]}
+                    </Text>
+                  </View>
+                </View>
+                {rec.lineItems.length > 0 && (
+                  <View style={styles.lineItems}>
+                    {rec.lineItems.map((li) => (
+                      <View key={li.id} style={styles.lineItem}>
+                        <View style={[styles.lineDot, { backgroundColor: li.serviceType === "repair" ? Colors.amber : li.serviceType === "replacement" ? Colors.red : Colors.cyan }]} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.lineComp}>{li.component}</Text>
+                          <Text style={styles.lineType}>{serviceTypeMeta[li.serviceType]}{li.cost ? ` · $${li.cost}` : ""}</Text>
+                          {li.notes && <Text style={styles.lineNote}>{li.notes}</Text>}
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
+                {rec.notes && <Text style={styles.recNotes}>{rec.notes}</Text>}
+              </Card>
+            ))}
+          </View>
+        )}
 
         {/* Documents */}
         <SectionHeader kicker="Vault" title="Trailer Documents" />
@@ -196,7 +252,7 @@ export default function TrailerDetail() {
           {[
             { label: "Registration", expires: "2026-09-12", icon: <FileText color={Colors.cyan} size={16} /> },
             { label: "Annual inspection", expires: "2026-10-04", icon: <ClipboardList color={Colors.cyan} size={16} /> },
-            { label: "Warranty", expires: "—", icon: <ShieldCheck color={Colors.cyan} size={16} /> },
+            { label: "Warranty", expires: trailer.warranty ? trailer.warranty.expirationDate : "—", icon: <ShieldCheck color={Colors.cyan} size={16} /> },
           ].map((d, i) => (
             <View key={d.label}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
@@ -299,4 +355,27 @@ const styles = StyleSheet.create({
   operatorRow: { flexDirection: "row", alignItems: "center", paddingVertical: 4, paddingHorizontal: 10, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.03)", borderWidth: 1, borderColor: Colors.border, alignSelf: "flex-start" },
   operatorLabel: { color: Colors.textMuted, fontSize: 10, fontWeight: "700", letterSpacing: 0.6, textTransform: "uppercase" },
   operatorName: { fontSize: 11, fontWeight: "800" },
+  // Lockout
+  lockoutBanner: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    padding: 14, borderRadius: 16, marginTop: 4,
+    backgroundColor: "rgba(255,51,102,0.1)", borderWidth: 1.5, borderColor: "rgba(255,51,102,0.45)",
+  },
+  lockoutTitle: { color: Colors.urgencyBlinkRed, fontSize: 14, fontWeight: "800" },
+  lockoutDesc: { color: "rgba(255,140,160,0.9)", fontSize: 12, marginTop: 2, lineHeight: 17 },
+  // Repair records
+  repairHeader: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  repairWo: { color: Colors.text, fontSize: 14, fontWeight: "800" },
+  repairMeta: { color: Colors.textMuted, fontSize: 12, marginTop: 2 },
+  providerBadge: {
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, borderWidth: 1,
+  },
+  providerText: { fontSize: 10, fontWeight: "800", letterSpacing: 0.6 },
+  lineItems: { marginTop: 10, gap: 8, paddingLeft: 2 },
+  lineItem: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  lineDot: { width: 8, height: 8, borderRadius: 99, marginTop: 5 },
+  lineComp: { color: Colors.text, fontSize: 13, fontWeight: "700" },
+  lineType: { color: Colors.textMuted, fontSize: 11, marginTop: 2 },
+  lineNote: { color: Colors.textDim, fontSize: 11, marginTop: 2, fontStyle: "italic" },
+  recNotes: { color: Colors.textDim, fontSize: 11, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.05)", fontStyle: "italic" },
 });
