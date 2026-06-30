@@ -34,7 +34,7 @@ export default function TrucksScreen() {
                   <HealthGauge value={t.health} size={66} thickness={6} label="" />
                 </View>
                 <View style={styles.silhouetteWrap}>
-                  <TruckSilhouette tint={tint} width={240} height={108} />
+                  <TruckSilhouette subtype={t.subtype} tint={tint} width={240} height={108} />
                 </View>
                 <View style={styles.statRow}>
                   <Stat icon={<Gauge color={Colors.electric} size={14} />} value={`${t.mileage.toLocaleString()} mi`} />

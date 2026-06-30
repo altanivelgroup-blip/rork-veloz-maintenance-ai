@@ -34,7 +34,7 @@ export default function TrailersScreen() {
                   <HealthGauge value={t.health} size={66} thickness={6} label="" />
                 </View>
                 <View style={styles.silhouetteWrap}>
-                  <TrailerSilhouette tint={tint} enclosed={t.enclosed} width={240} height={100} />
+                  <TrailerSilhouette subtype={t.subtype} tint={tint} width={240} height={100} />
                 </View>
                 <View style={styles.statRow}>
                   <Stat icon={<Ruler color={Colors.electric} size={14} />} value={`${t.length}ft`} />

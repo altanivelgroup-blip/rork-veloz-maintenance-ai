@@ -1,49 +1,67 @@
 import { Stack, useLocalSearchParams, router } from "expo-router";
 import {
   Activity, Battery, Calendar, ChevronRight, CircleDot, ClipboardList, Cog, Disc, Droplet, FileText,
-  Fuel, Gauge, IdCard, Link as LinkIcon, Plug, Settings2, ShieldCheck, Thermometer, Wind, Wrench, Zap,
+  Fuel, Gauge, IdCard, Info, Link as LinkIcon, Plug, Settings2, ShieldCheck, Thermometer, Wind, Wrench, Zap,
 } from "lucide-react-native";
-import React from "react";
+import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import AssetBlueprint from "@/components/AssetBlueprint";
+import AvailabilityBadge from "@/components/AvailabilityBadge";
 import Card from "@/components/Card";
 import HealthGauge from "@/components/HealthGauge";
 import InsightCard from "@/components/InsightCard";
+import InspectionSyncBadge from "@/components/InspectionSyncBadge";
 import MetricBar from "@/components/MetricBar";
+import RoadReadyBadge from "@/components/RoadReadyBadge";
 import Screen from "@/components/Screen";
 import SectionHeader from "@/components/SectionHeader";
 import StatusBadge from "@/components/StatusBadge";
 import TruckSilhouette from "@/components/TruckSilhouette";
 import { Colors, statusMeta } from "@/constants/colors";
+import { truckSubtypeMeta } from "@/constants/mockData";
 import { useFleet } from "@/providers/FleetProvider";
 
 export default function TruckDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getTruck, getTrailer } = useFleet();
+  const [blueprintOpen, setBlueprintOpen] = useState(false);
   const truck = getTruck(id ?? "");
   if (!truck) return <Screen><Text style={{ color: Colors.text }}>Truck not found</Text></Screen>;
 
   const trailer = truck.assignedTrailerId ? getTrailer(truck.assignedTrailerId) : undefined;
-  const tint = statusMeta[truck.status].color;
+  const subtypeInfo = truckSubtypeMeta[truck.subtype];
 
   return (
     <>
       <Stack.Screen options={{ title: truck.nickname }} />
       <Screen>
         {/* Hero */}
-        <Card glow={truck.status !== "operational"}>
+        <Card glow={truck.roadReadyStatus !== "road_ready"}>
           <View style={{ flexDirection: "row", alignItems: "center" }}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.kicker}>{truck.cdl} · {truck.fuelType}</Text>
+              <Text style={styles.kicker}>{truck.cdl} · {truck.fuelType} · {subtypeInfo.label}</Text>
               <Text style={styles.h1}>{truck.nickname}</Text>
               <Text style={styles.sub}>{truck.year} {truck.make} {truck.model} {truck.trim}</Text>
-              <View style={{ marginTop: 8 }}>
-                <StatusBadge status={truck.status} />
+              <View style={{ marginTop: 8, gap: 6 }}>
+                <RoadReadyBadge status={truck.roadReadyStatus} />
+                <AvailabilityBadge state={truck.availability} />
               </View>
             </View>
             <HealthGauge value={truck.health} size={104} label="Health" />
           </View>
-          <View style={styles.silhouetteWrap}>
-            <TruckSilhouette tint={tint} width={300} height={130} />
+          {/* Tap silhouette → Asset Blueprint */}
+          <Pressable onPress={() => setBlueprintOpen(true)}>
+            <View style={styles.silhouetteWrap}>
+              <TruckSilhouette subtype={truck.subtype} tint={statusMeta[truck.status].color} width={300} height={140} />
+              <View style={styles.blueprintHint}>
+                <Info color={Colors.textDim} size={12} />
+                <Text style={styles.blueprintHintText}>Tap for asset blueprint</Text>
+              </View>
+            </View>
+          </Pressable>
+          {/* Inspection sync */}
+          <View style={{ marginBottom: 10 }}>
+            <InspectionSyncBadge lastInspectionAt={truck.lastInspectionAt} lastInspectionResult={truck.lastInspectionResult} />
           </View>
           <View style={styles.kvGrid}>
             <KV icon={<Gauge color={Colors.electric} size={14} />} label="Mileage" value={`${truck.mileage.toLocaleString()} mi`} />
@@ -227,6 +245,9 @@ export default function TruckDetail() {
             <Text style={styles.inspectCtaText}>Run inspection on {truck.nickname}</Text>
           </View>
         </Pressable>
+
+        {/* Asset Blueprint Drawer */}
+        <AssetBlueprint visible={blueprintOpen} asset={truck} kind="truck" onClose={() => setBlueprintOpen(false)} />
       </Screen>
     </>
   );
@@ -274,7 +295,9 @@ const styles = StyleSheet.create({
   sub: { color: Colors.textMuted, fontSize: 12, marginTop: 2 },
   sub2: { color: Colors.textMuted, fontSize: 12, marginTop: 2 },
   title: { color: Colors.text, fontSize: 14, fontWeight: "700" },
-  silhouetteWrap: { alignItems: "center", marginTop: 6, marginBottom: 8 },
+  silhouetteWrap: { alignItems: "center", marginTop: 6, marginBottom: 4 },
+  blueprintHint: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4, opacity: 0.6 },
+  blueprintHintText: { color: Colors.textDim, fontSize: 10, fontWeight: "600" },
   kvGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
   kv: { flexBasis: "47%", flexGrow: 1, padding: 10, backgroundColor: "rgba(255,255,255,0.03)", borderRadius: 12, borderWidth: 1, borderColor: Colors.border },
   kvLabel: { color: Colors.textMuted, fontSize: 10, fontWeight: "700", letterSpacing: 0.8, textTransform: "uppercase" },

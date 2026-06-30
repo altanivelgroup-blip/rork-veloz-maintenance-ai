@@ -1,5 +1,88 @@
 import type { StatusKey } from "./colors";
 
+// ══════════════════════════════════════════════
+// Equipment Subtypes — High-Fidelity Asset Profiles
+// ══════════════════════════════════════════════
+
+export type TruckSubtype = "daycab" | "sleeper" | "heavy_duty";
+export type TrailerSubtype =
+  | "1car_enclosed"
+  | "2car_open"
+  | "2car_enclosed"
+  | "3car_wedge"
+  | "4car_wedge"
+  | "5car_quickloader"
+  | "9car_stinger";
+
+export const truckSubtypeMeta: Record<TruckSubtype, { label: string; axleLabel: string }> = {
+  daycab: { label: "Day Cab Tractor", axleLabel: "Single / Tandem Rear" },
+  sleeper: { label: "Sleeper Berth", axleLabel: "Tandem Rear" },
+  heavy_duty: { label: "Heavy Duty Rig", axleLabel: "Dual Tandem Rear" },
+};
+
+export const trailerSubtypeMeta: Record<TrailerSubtype, { label: string; axles: number; deckLabel: string }> = {
+  "1car_enclosed": { label: "1-Car Enclosed", axles: 2, deckLabel: "Single enclosed bay" },
+  "2car_open": { label: "2-Car Open Deck", axles: 2, deckLabel: "Flat deck, dual ramp" },
+  "2car_enclosed": { label: "2-Car Enclosed", axles: 2, deckLabel: "Tandem enclosed bays" },
+  "3car_wedge": { label: "3-Car Wedge", axles: 3, deckLabel: "Stacked wedge deck" },
+  "4car_wedge": { label: "4-Car Wedge", axles: 3, deckLabel: "Extended wedge deck" },
+  "5car_quickloader": { label: "5-Car Quick-Loader", axles: 4, deckLabel: "Multi-level hydraulic" },
+  "9car_stinger": { label: "9-Car Stinger-Steer", axles: 5, deckLabel: "Double-deck articulating" },
+};
+
+// ══════════════════════════════════════════════
+// Road-Ready Status — Multi-Tier Safety Metric
+// ══════════════════════════════════════════════
+
+export type RoadReadyStatus = "road_ready" | "restricted_use" | "out_of_service";
+
+export const roadReadyMeta: Record<RoadReadyStatus, { label: string; color: string; soft: string; badge: string }> = {
+  road_ready: { label: "Road Ready", color: "#22D399", soft: "rgba(34,211,153,0.14)", badge: "CLEARED" },
+  restricted_use: {
+    label: "Restricted Use",
+    color: "#FFB547",
+    soft: "rgba(255,181,71,0.14)",
+    badge: "LOCAL ONLY",
+  },
+  out_of_service: {
+    label: "Out of Service",
+    color: "#FF5470",
+    soft: "rgba(255,84,112,0.14)",
+    badge: "DEAD-RED",
+  },
+};
+
+// ══════════════════════════════════════════════
+// Availability Matrix — Dispatch-Ready States
+// ══════════════════════════════════════════════
+
+export type AvailabilityState = "available" | "assigned" | "in_shop" | "staged";
+
+export const availabilityMeta: Record<AvailabilityState, { label: string; color: string; icon: string }> = {
+  available: { label: "Available", color: "#22D399", icon: "yard" },
+  assigned: { label: "Assigned / In-Transit", color: "#5EE7FF", icon: "route" },
+  in_shop: { label: "In Shop", color: "#FFB547", icon: "wrench" },
+  staged: { label: "Staged", color: "#7CC4FF", icon: "clock" },
+};
+
+// ══════════════════════════════════════════════
+// Inspection Sync — Compliance Tracking
+// ══════════════════════════════════════════════
+
+export const INSPECTION_EXPIRY_HOURS = 24;
+
+export function getInspectionStatus(lastInspectionAt?: string): { expired: boolean; hoursAgo: number; label: string; color: string } {
+  if (!lastInspectionAt) return { expired: true, hoursAgo: Infinity, label: "Never inspected", color: "#FF5470" };
+  const now = Date.now();
+  const then = new Date(lastInspectionAt).getTime();
+  const hoursAgo = (now - then) / (1000 * 60 * 60);
+  const expired = hoursAgo > INSPECTION_EXPIRY_HOURS;
+  if (hoursAgo < 1) return { expired: false, hoursAgo, label: "Inspected < 1 hr ago", color: "#22D399" };
+  if (hoursAgo < 6) return { expired: false, hoursAgo, label: `Inspected ${Math.floor(hoursAgo)}h ago`, color: "#22D399" };
+  if (!expired) return { expired: false, hoursAgo, label: `Inspected ${Math.floor(hoursAgo)}h ago`, color: "#FFB547" };
+  return { expired: true, hoursAgo, label: "Inspection Expired", color: "#FF5470" };
+}
+
 export type ServiceEvent = {
   id: string;
   date: string;
@@ -24,6 +107,7 @@ export type Truck = {
   make: string;
   model: string;
   trim: string;
+  subtype: TruckSubtype;
   mileage: number;
   fuelType: "Diesel" | "Gas";
   avgMpg: number;
@@ -31,8 +115,14 @@ export type Truck = {
   vin: string;
   plate: string;
   state: string;
+  emptyWeight: number;
+  gvwr: number;
   assignedTrailerId?: string;
   status: StatusKey;
+  roadReadyStatus: RoadReadyStatus;
+  availability: AvailabilityState;
+  lastInspectionAt?: string;
+  lastInspectionResult?: "pass" | "fail" | "flagged";
   health: number;
   insights: AIInsight[];
   modules: {
@@ -54,13 +144,19 @@ export type Trailer = {
   make: string;
   model: string;
   type: string;
+  subtype: TrailerSubtype;
   enclosed: boolean;
+  emptyWeight: number;
   gvwr: number;
   axles: number;
   length: number;
   carCapacity: number;
   assignedTruckId?: string;
   status: StatusKey;
+  roadReadyStatus: RoadReadyStatus;
+  availability: AvailabilityState;
+  lastInspectionAt?: string;
+  lastInspectionResult?: "pass" | "fail" | "flagged";
   health: number;
   insights: AIInsight[];
   modules: {
@@ -83,6 +179,7 @@ export const TRUCKS: Truck[] = [
     make: "Ram",
     model: "3500",
     trim: "Dually Laramie",
+    subtype: "daycab" as TruckSubtype,
     mileage: 148220,
     fuelType: "Diesel",
     avgMpg: 9.8,
@@ -90,8 +187,14 @@ export const TRUCKS: Truck[] = [
     vin: "3C63R3HL•••••2294",
     plate: "VLZ-3501",
     state: "TX",
+    emptyWeight: 8500,
+    gvwr: 14000,
     assignedTrailerId: "tr1",
     status: "operational",
+    roadReadyStatus: "road_ready" as RoadReadyStatus,
+    availability: "assigned" as AvailabilityState,
+    lastInspectionAt: "2026-06-30T06:14:00Z",
+    lastInspectionResult: "pass",
     health: 92,
     insights: [
       { id: "i1", severity: "info", title: "Engine operating normally", detail: "No fault codes in 30 days." },
@@ -121,6 +224,7 @@ export const TRUCKS: Truck[] = [
     make: "Ford",
     model: "F-450",
     trim: "Platinum",
+    subtype: "daycab" as TruckSubtype,
     mileage: 211800,
     fuelType: "Diesel",
     avgMpg: 10.2,
@@ -128,8 +232,14 @@ export const TRUCKS: Truck[] = [
     vin: "1FT8W4DT•••••0117",
     plate: "VLZ-4502",
     state: "TX",
+    emptyWeight: 8800,
+    gvwr: 14000,
     assignedTrailerId: "tr2",
     status: "attention",
+    roadReadyStatus: "restricted_use" as RoadReadyStatus,
+    availability: "assigned" as AvailabilityState,
+    lastInspectionAt: "2026-06-29T14:30:00Z",
+    lastInspectionResult: "pass",
     health: 74,
     insights: [
       { id: "i1", severity: "warn", title: "Fuel efficiency dropped 8%", detail: "Headwinds on I-40 corridor impacting MPG." },
@@ -158,6 +268,7 @@ export const TRUCKS: Truck[] = [
     make: "Chevrolet",
     model: "Silverado 3500HD",
     trim: "High Country",
+    subtype: "daycab" as TruckSubtype,
     mileage: 38400,
     fuelType: "Diesel",
     avgMpg: 11.4,
@@ -165,7 +276,13 @@ export const TRUCKS: Truck[] = [
     vin: "1GC4YVE7•••••8821",
     plate: "VLZ-3503",
     state: "TX",
+    emptyWeight: 8200,
+    gvwr: 13500,
     status: "operational",
+    roadReadyStatus: "road_ready" as RoadReadyStatus,
+    availability: "available" as AvailabilityState,
+    lastInspectionAt: "2026-06-29T08:00:00Z",
+    lastInspectionResult: "pass",
     health: 98,
     insights: [
       { id: "i1", severity: "info", title: "Operating at peak efficiency", detail: "MPG trending +3% above baseline." },
@@ -192,6 +309,7 @@ export const TRUCKS: Truck[] = [
     make: "Ford",
     model: "F-550",
     trim: "XLT",
+    subtype: "heavy_duty" as TruckSubtype,
     mileage: 288150,
     fuelType: "Diesel",
     avgMpg: 8.6,
@@ -199,8 +317,14 @@ export const TRUCKS: Truck[] = [
     vin: "1FDUF5HT•••••4490",
     plate: "VLZ-5504",
     state: "TX",
+    emptyWeight: 9500,
+    gvwr: 19500,
     assignedTrailerId: "tr3",
     status: "out",
+    roadReadyStatus: "out_of_service" as RoadReadyStatus,
+    availability: "in_shop" as AvailabilityState,
+    lastInspectionAt: "2026-06-28T07:45:00Z",
+    lastInspectionResult: "fail",
     health: 41,
     insights: [
       { id: "i1", severity: "fail", title: "Coolant system flagged", detail: "Temp spike detected at 218°F on last run. Inspect water pump." },
@@ -229,6 +353,7 @@ export const TRUCKS: Truck[] = [
     make: "GMC",
     model: "Sierra 3500HD",
     trim: "Denali Ultimate",
+    subtype: "sleeper" as TruckSubtype,
     mileage: 67900,
     fuelType: "Diesel",
     avgMpg: 11.0,
@@ -236,7 +361,13 @@ export const TRUCKS: Truck[] = [
     vin: "1GT49WEY•••••7702",
     plate: "VLZ-3505",
     state: "TX",
+    emptyWeight: 8600,
+    gvwr: 14000,
     status: "operational",
+    roadReadyStatus: "road_ready" as RoadReadyStatus,
+    availability: "available" as AvailabilityState,
+    lastInspectionAt: "2026-06-30T05:30:00Z",
+    lastInspectionResult: "pass",
     health: 89,
     insights: [
       { id: "i1", severity: "info", title: "Healthy operational profile", detail: "Last 30 days zero incidents." },
@@ -266,13 +397,19 @@ export const TRAILERS: Trailer[] = [
     make: "Kaufman",
     model: "Wedge 40",
     type: "3-Car Wedge",
+    subtype: "3car_wedge" as TrailerSubtype,
     enclosed: false,
+    emptyWeight: 6800,
     gvwr: 24000,
     axles: 3,
     length: 40,
     carCapacity: 3,
     assignedTruckId: "t1",
     status: "operational",
+    roadReadyStatus: "road_ready" as RoadReadyStatus,
+    availability: "assigned" as AvailabilityState,
+    lastInspectionAt: "2026-06-29T16:00:00Z",
+    lastInspectionResult: "pass",
     health: 87,
     insights: [
       { id: "i1", severity: "info", title: "Trailer road ready", detail: "All systems within service window." },
@@ -299,13 +436,19 @@ export const TRAILERS: Trailer[] = [
     make: "PJ Trailers",
     model: "GN 36",
     type: "Gooseneck Flatbed",
+    subtype: "2car_open" as TrailerSubtype,
     enclosed: false,
+    emptyWeight: 5200,
     gvwr: 22000,
     axles: 2,
     length: 36,
     carCapacity: 2,
     assignedTruckId: "t2",
     status: "attention",
+    roadReadyStatus: "restricted_use" as RoadReadyStatus,
+    availability: "assigned" as AvailabilityState,
+    lastInspectionAt: "2026-06-28T12:00:00Z",
+    lastInspectionResult: "flagged",
     health: 68,
     insights: [
       { id: "i1", severity: "warn", title: "Bearing service overdue", detail: "Last service 13,800 mi ago — interval 12,000 mi." },
@@ -332,13 +475,19 @@ export const TRAILERS: Trailer[] = [
     make: "Continental Cargo",
     model: "Auto Hauler 28",
     type: "Enclosed Hauler",
+    subtype: "1car_enclosed" as TrailerSubtype,
     enclosed: true,
+    emptyWeight: 4500,
     gvwr: 14000,
     axles: 2,
     length: 28,
     carCapacity: 1,
     assignedTruckId: "t4",
     status: "out",
+    roadReadyStatus: "out_of_service" as RoadReadyStatus,
+    availability: "in_shop" as AvailabilityState,
+    lastInspectionAt: "2026-06-27T09:00:00Z",
+    lastInspectionResult: "fail",
     health: 36,
     insights: [
       { id: "i1", severity: "fail", title: "Brake wear unsafe", detail: "Brake shoes at 14%. Do not dispatch." },
@@ -365,13 +514,18 @@ export const TRAILERS: Trailer[] = [
     make: "Big Tex",
     model: "22GN",
     type: "Tilt Deck",
+    subtype: "2car_open" as TrailerSubtype,
     enclosed: false,
+    emptyWeight: 4200,
     gvwr: 23900,
     axles: 2,
     length: 24,
     carCapacity: 2,
-    enclosed_x: undefined as never,
     status: "operational",
+    roadReadyStatus: "road_ready" as RoadReadyStatus,
+    availability: "available" as AvailabilityState,
+    lastInspectionAt: "2026-06-30T04:45:00Z",
+    lastInspectionResult: "pass",
     health: 94,
     insights: [
       { id: "i1", severity: "info", title: "New trailer in service", detail: "All systems within break-in window." },
@@ -388,7 +542,7 @@ export const TRAILERS: Trailer[] = [
     history: [
       { id: "s1", date: "2026-04-22", mileage: 2200, type: "Pre-delivery inspection passed", severity: "info" },
     ],
-  } as unknown as Trailer,
+  },
 ];
 
 export type Inspection = {

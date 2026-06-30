@@ -1,6 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import { Activity, AlertTriangle, ArrowRight, Calendar, ChevronRight, Container, DollarSign, Fuel, ShieldCheck, Truck, Wrench, Zap } from "lucide-react-native";
+import { Activity, AlertTriangle, ArrowRight, Calendar, CheckCircle, ChevronRight, Clock, Container, DollarSign, Fuel, Route, ShieldCheck, Truck, Wrench, Zap } from "lucide-react-native";
 import React, { useMemo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Card from "@/components/Card";
@@ -11,10 +11,11 @@ import SectionHeader from "@/components/SectionHeader";
 import Sparkline from "@/components/Sparkline";
 import StatusBadge from "@/components/StatusBadge";
 import { Colors, Gradients } from "@/constants/colors";
+import { availabilityMeta } from "@/constants/mockData";
 import { useFleet } from "@/providers/FleetProvider";
 
 export default function DashboardScreen() {
-  const { fleetHealth, counts, trucks, trailers, allInsights, ai, inspections } = useFleet();
+  const { fleetHealth, counts, trucks, trailers, allInsights, ai, inspections, availabilityCounts, expiredInspections } = useFleet();
 
   const topInsights = allInsights.slice(0, 3);
   const upcomingInspections = useMemo(() => {
@@ -73,6 +74,47 @@ export default function DashboardScreen() {
         <StatTile icon={<AlertTriangle color={Colors.amber} size={18} />} label="Alerts" value={`${allInsights.filter((i) => i.severity !== "info").length}`} caption="active" />
         <StatTile icon={<Wrench color={Colors.red} size={18} />} label="Overdue" value={`${ai.predictions.filter((p) => p.eta === "Now").length}`} caption="services" />
       </View>
+
+      {/* Availability Matrix */}
+      <SectionHeader kicker="Dispatch" title="Availability Matrix" />
+      <Card>
+        <View style={styles.availGrid}>
+          <AvailTile icon={<CheckCircle color={availabilityMeta.available.color} size={18} />} label="Available" value={`${availabilityCounts.available}`} color={availabilityMeta.available.color} />
+          <AvailTile icon={<Route color={availabilityMeta.assigned.color} size={18} />} label="In-Transit" value={`${availabilityCounts.assigned}`} color={availabilityMeta.assigned.color} />
+          <AvailTile icon={<Wrench color={availabilityMeta.in_shop.color} size={18} />} label="In Shop" value={`${availabilityCounts.inShop}`} color={availabilityMeta.in_shop.color} />
+          <AvailTile icon={<Clock color={availabilityMeta.staged.color} size={18} />} label="Staged" value={`${availabilityCounts.staged}`} color={availabilityMeta.staged.color} />
+        </View>
+        <View style={styles.availBar}>
+          {availabilityCounts.available > 0 && <View style={[styles.availBarSeg, { flex: availabilityCounts.available, backgroundColor: availabilityMeta.available.color }]} />}
+          {availabilityCounts.assigned > 0 && <View style={[styles.availBarSeg, { flex: availabilityCounts.assigned, backgroundColor: availabilityMeta.assigned.color }]} />}
+          {availabilityCounts.inShop > 0 && <View style={[styles.availBarSeg, { flex: availabilityCounts.inShop, backgroundColor: availabilityMeta.in_shop.color }]} />}
+          {availabilityCounts.staged > 0 && <View style={[styles.availBarSeg, { flex: availabilityCounts.staged, backgroundColor: availabilityMeta.staged.color }]} />}
+        </View>
+      </Card>
+
+      {/* Inspection Expired Alerts */}
+      {expiredInspections.length > 0 && (
+        <>
+          <SectionHeader kicker="Compliance" title={`Inspection Expired (${expiredInspections.length})`} />
+          <View style={{ gap: 10 }}>
+            {expiredInspections.map((eq) => (
+              <Pressable key={`${eq.kind}-${eq.id}`} onPress={() => router.push(`/${eq.kind}/${eq.id}` as never)}>
+                <View style={styles.expiredCard}>
+                  <LinearGradient colors={["rgba(255,84,112,0.2)", "rgba(255,84,112,0.04)"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+                  <View style={[styles.iconBubble, { backgroundColor: "rgba(255,84,112,0.18)" }]}>
+                    <AlertTriangle color="#FF5470" size={18} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.oosName}>{eq.name}</Text>
+                    <Text style={styles.oosSub}>Pre-trip expired · {Math.floor(eq.hoursAgo)}h since last</Text>
+                  </View>
+                  <ChevronRight color={Colors.textMuted} size={18} style={{ marginLeft: 8 }} />
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      )}
 
       {/* Fuel + Cost */}
       <View style={{ flexDirection: "row", gap: 12 }}>
@@ -232,6 +274,16 @@ function StatTile({ icon, label, value, caption }: { icon: React.ReactNode; labe
   );
 }
 
+function AvailTile({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: string; color: string }) {
+  return (
+    <View style={[styles.availTile, { borderColor: `${color}30` }]}>
+      {icon}
+      <Text style={[styles.availValue, { color }]}>{value}</Text>
+      <Text style={[styles.availLabel, { color }]}>{label}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "flex-start", marginBottom: 4, marginTop: 4 },
   kicker: { color: Colors.cyan, fontSize: 10, letterSpacing: 2.4, fontWeight: "800", textTransform: "uppercase" },
@@ -282,4 +334,15 @@ const styles = StyleSheet.create({
   },
   ctaTitle: { color: "#fff", fontSize: 16, fontWeight: "800", letterSpacing: -0.2 },
   ctaSub: { color: "rgba(255,255,255,0.85)", fontSize: 12, marginTop: 2 },
+  availGrid: { flexDirection: "row", gap: 8, marginBottom: 12 },
+  availTile: { flex: 1, alignItems: "center", paddingVertical: 12, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.02)", borderWidth: 1 },
+  availValue: { fontSize: 22, fontWeight: "800", letterSpacing: -0.5, marginTop: 6 },
+  availLabel: { fontSize: 9, fontWeight: "800", letterSpacing: 1, textTransform: "uppercase", marginTop: 2 },
+  availBar: { flexDirection: "row", height: 6, borderRadius: 3, overflow: "hidden", gap: 2 },
+  availBarSeg: { height: "100%", borderRadius: 2 },
+  expiredCard: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    padding: 14, borderRadius: 16, overflow: "hidden",
+    borderWidth: 1, borderColor: "rgba(255,84,112,0.3)",
+  },
 });

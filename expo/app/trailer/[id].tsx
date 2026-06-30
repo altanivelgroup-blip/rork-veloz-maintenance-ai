@@ -1,49 +1,65 @@
 import { Stack, useLocalSearchParams, router } from "expo-router";
 import {
-  Activity, Calendar, ChevronRight, ClipboardList, Disc, Layers, Lightbulb,
-  Link as LinkIcon, Ruler, ShieldCheck, Truck, Wrench, Anchor, FileText,
+  Activity, Calendar, ChevronRight, ClipboardList, Disc, FileText, Info, Layers,
+  Lightbulb, Link as LinkIcon, Ruler, ShieldCheck, Truck, Wrench, Anchor,
 } from "lucide-react-native";
-import React from "react";
+import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import AssetBlueprint from "@/components/AssetBlueprint";
+import AvailabilityBadge from "@/components/AvailabilityBadge";
 import Card from "@/components/Card";
 import HealthGauge from "@/components/HealthGauge";
 import InsightCard from "@/components/InsightCard";
+import InspectionSyncBadge from "@/components/InspectionSyncBadge";
 import MetricBar from "@/components/MetricBar";
+import RoadReadyBadge from "@/components/RoadReadyBadge";
 import Screen from "@/components/Screen";
 import SectionHeader from "@/components/SectionHeader";
 import StatusBadge from "@/components/StatusBadge";
 import TrailerSilhouette from "@/components/TrailerSilhouette";
 import { Colors, statusMeta } from "@/constants/colors";
+import { trailerSubtypeMeta } from "@/constants/mockData";
 import { useFleet } from "@/providers/FleetProvider";
 
 export default function TrailerDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getTrailer, getTruck } = useFleet();
+  const [blueprintOpen, setBlueprintOpen] = useState(false);
   const trailer = getTrailer(id ?? "");
   if (!trailer) return <Screen><Text style={{ color: Colors.text }}>Trailer not found</Text></Screen>;
 
   const truck = trailer.assignedTruckId ? getTruck(trailer.assignedTruckId) : undefined;
-  const tint = statusMeta[trailer.status].color;
+  const subtypeInfo = trailerSubtypeMeta[trailer.subtype];
 
   return (
     <>
       <Stack.Screen options={{ title: trailer.nickname }} />
       <Screen>
         {/* Hero */}
-        <Card glow={trailer.status !== "operational"}>
+        <Card glow={trailer.roadReadyStatus !== "road_ready"}>
           <View style={{ flexDirection: "row", alignItems: "center" }}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.kicker}>{trailer.type} · {trailer.enclosed ? "Enclosed" : "Open"}</Text>
+              <Text style={styles.kicker}>{trailer.type} · {trailer.enclosed ? "Enclosed" : "Open"} · {subtypeInfo.label}</Text>
               <Text style={styles.h1}>{trailer.nickname}</Text>
               <Text style={styles.sub}>{trailer.year} {trailer.make} {trailer.model}</Text>
-              <View style={{ marginTop: 8 }}>
-                <StatusBadge status={trailer.status} />
+              <View style={{ marginTop: 8, gap: 6 }}>
+                <RoadReadyBadge status={trailer.roadReadyStatus} />
+                <AvailabilityBadge state={trailer.availability} />
               </View>
             </View>
             <HealthGauge value={trailer.health} size={104} label="Health" />
           </View>
-          <View style={styles.silhouetteWrap}>
-            <TrailerSilhouette tint={tint} enclosed={trailer.enclosed} width={300} height={120} />
+          <Pressable onPress={() => setBlueprintOpen(true)}>
+            <View style={styles.silhouetteWrap}>
+              <TrailerSilhouette subtype={trailer.subtype} tint={statusMeta[trailer.status].color} width={300} height={120} />
+              <View style={styles.blueprintHint}>
+                <Info color={Colors.textDim} size={12} />
+                <Text style={styles.blueprintHintText}>Tap for asset blueprint</Text>
+              </View>
+            </View>
+          </Pressable>
+          <View style={{ marginBottom: 10 }}>
+            <InspectionSyncBadge lastInspectionAt={trailer.lastInspectionAt} lastInspectionResult={trailer.lastInspectionResult} />
           </View>
           <View style={styles.kvGrid}>
             <KV icon={<Ruler color={Colors.electric} size={14} />} label="Length" value={`${trailer.length} ft`} />
@@ -197,6 +213,9 @@ export default function TrailerDetail() {
             <Text style={styles.inspectCtaText}>Run inspection on {trailer.nickname}</Text>
           </View>
         </Pressable>
+
+        {/* Asset Blueprint Drawer */}
+        <AssetBlueprint visible={blueprintOpen} asset={trailer} kind="trailer" onClose={() => setBlueprintOpen(false)} />
       </Screen>
     </>
   );
@@ -244,7 +263,9 @@ const styles = StyleSheet.create({
   sub: { color: Colors.textMuted, fontSize: 12, marginTop: 2 },
   sub2: { color: Colors.textMuted, fontSize: 12, marginTop: 2 },
   title: { color: Colors.text, fontSize: 14, fontWeight: "700" },
-  silhouetteWrap: { alignItems: "center", marginTop: 6, marginBottom: 8 },
+  silhouetteWrap: { alignItems: "center", marginTop: 6, marginBottom: 4 },
+  blueprintHint: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4, opacity: 0.6 },
+  blueprintHintText: { color: Colors.textDim, fontSize: 10, fontWeight: "600" },
   kvGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
   kv: { flexBasis: "47%", flexGrow: 1, padding: 10, backgroundColor: "rgba(255,255,255,0.03)", borderRadius: 12, borderWidth: 1, borderColor: Colors.border },
   kvLabel: { color: Colors.textMuted, fontSize: 10, fontWeight: "700", letterSpacing: 0.8, textTransform: "uppercase" },
