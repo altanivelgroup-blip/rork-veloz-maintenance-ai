@@ -1,5 +1,5 @@
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Colors, statusMeta } from "@/constants/colors";
 import StatusBadge from "@/components/StatusBadge";
 
@@ -16,21 +16,26 @@ export function KV({ icon, label, value }: { icon: React.ReactNode; label: strin
   );
 }
 
-/** Module health row with icon, label, value, and compact status badge. */
+/** Module health row with icon, label, value, and compact status badge.
+ *  Accepts an optional `onPress` — when provided (and status is not "operational"),
+ *  the row becomes tappable, bridging to an "Open Shop Repair Ticket" drawer. */
 export function ModuleRow({
   icon,
   label,
   value,
   status,
+  onPress,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
   status: keyof typeof statusMeta;
+  onPress?: () => void;
 }) {
-  return (
-    <View style={styles.modRow}>
-      <View style={[styles.iconBubble, { backgroundColor: "rgba(94,231,255,0.10)" }]}>
+  const isTappable = onPress != null && status !== "operational";
+  const content = (
+    <View style={[styles.modRow, isTappable && styles.modRowTappable]}>
+      <View style={[styles.iconBubble, { backgroundColor: status !== "operational" ? "rgba(255,181,71,0.12)" : "rgba(94,231,255,0.10)" }]}>
         {icon}
       </View>
       <View style={{ flex: 1 }}>
@@ -40,6 +45,11 @@ export function ModuleRow({
       <StatusBadge status={status} compact />
     </View>
   );
+
+  if (isTappable) {
+    return <Pressable onPress={onPress}>{content}</Pressable>;
+  }
+  return content;
 }
 
 /** Thin 1px divider for card interiors. */
@@ -76,6 +86,7 @@ const styles = StyleSheet.create({
   },
   kvValue: { color: Colors.text, fontSize: 13, fontWeight: "700", marginTop: 4 },
   modRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 8 },
+  modRowTappable: { paddingHorizontal: 4, borderRadius: 12 },
   iconBubble: {
     width: 32,
     height: 32,

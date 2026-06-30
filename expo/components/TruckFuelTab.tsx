@@ -6,6 +6,7 @@ import { Colors, Gradients } from "@/constants/colors";
 import type { FuelTransaction, Truck } from "@/constants/mockData";
 import type { CPMBreakdown, TimeframeKey } from "@/lib/cpmAccounting";
 import { useFleet } from "@/providers/FleetProvider";
+import { formatDateShort, formatDateShortTime, formatDecimal, formatInt } from "@/utils/format";
 
 type Props = {
   truck: Truck;
@@ -49,7 +50,7 @@ export default function TruckFuelTab({ truck }: Props) {
       const mpg = gallons > 0 ? Math.round((miles / gallons) * 10) / 10 : 0;
       if (mpg > 0 && mpg < 30) {
         points.push({
-          label: new Date(last10Fills[i].authTimestamp).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+          label: formatDateShort(last10Fills[i].authTimestamp),
           mpg,
           gallons,
         });
@@ -208,10 +209,8 @@ export default function TruckFuelTab({ truck }: Props) {
               <View style={{ flex: 1 }}>
                 <Text style={styles.txVendor}>{tx.vendorName}</Text>
                 <Text style={styles.txMeta}>
-                  {new Date(tx.authTimestamp).toLocaleDateString(undefined, {
-                    month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
-                  })}
-                  {" · "}{tx.odometerAtFill.toLocaleString()} mi
+                  {formatDateShortTime(tx.authTimestamp)}
+                  {" · "}{formatInt(tx.odometerAtFill)} mi
                 </Text>
               </View>
               <View style={styles.txStats}>

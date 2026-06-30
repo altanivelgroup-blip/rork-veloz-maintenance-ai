@@ -21,14 +21,21 @@ import ServiceScheduleCard from "@/components/ServiceScheduleCard";
 import StatusBadge from "@/components/StatusBadge";
 import TrailerSilhouette from "@/components/TrailerSilhouette";
 import WarrantyBanner from "@/components/WarrantyBanner";
+import ShopRepairTicket from "@/components/ShopRepairTicket";
 import { Colors, statusMeta } from "@/constants/colors";
 import { trailerSubtypeMeta, serviceTypeMeta, serviceProviderMeta } from "@/constants/mockData";
 import { useFleet } from "@/providers/FleetProvider";
+import { formatWeightCompact, formatMiles, formatServiceDue, formatRepairMeta } from "@/utils/format";
 
 export default function TrailerDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getTrailer, getTruck, getCurrentOperator, getServiceUrgency, getWarrantyCoverage, getMaintenanceLockState } = useFleet();
   const [blueprintOpen, setBlueprintOpen] = useState(false);
+  const [repairTicket, setRepairTicket] = useState<{ open: boolean; component: string; notes: string }>({ open: false, component: "", notes: "" });
+
+  const openRepairTicket = (component: string, notes = "") => setRepairTicket({ open: true, component, notes });
+  const closeRepairTicket = () => setRepairTicket({ open: false, component: "", notes: "" });
+
   const trailer = getTrailer(id ?? "");
   if (!trailer) return <Screen><Text style={{ color: Colors.text }}>Trailer not found</Text></Screen>;
 
@@ -75,7 +82,7 @@ export default function TrailerDetail() {
           <View style={styles.kvGrid}>
             <KV icon={<Ruler color={Colors.electric} size={14} />} label="Length" value={`${trailer.length} ft`} />
             <KV icon={<Layers color={Colors.electric} size={14} />} label="Axles" value={`${trailer.axles}`} />
-            <KV icon={<Anchor color={Colors.electric} size={14} />} label="GVWR" value={`${(trailer.gvwr / 1000).toFixed(1)}k lb`} />
+            <KV icon={<Anchor color={Colors.electric} size={14} />} label="GVWR" value={formatWeightCompact(trailer.gvwr)} />
             <KV icon={<Truck color={Colors.electric} size={14} />} label="Capacity" value={`${trailer.carCapacity} car${trailer.carCapacity > 1 ? "s" : ""}`} />
           </View>
         </Card>
@@ -114,8 +121,9 @@ export default function TrailerDetail() {
           <ModuleRow
             icon={<Disc color={Colors.cyan} size={16} />}
             label="Last service"
-            value={`${trailer.modules.bearings.lastServiceMiles.toLocaleString()} mi ago · interval ${trailer.modules.bearings.intervalMiles.toLocaleString()} mi`}
+            value={`${formatMiles(trailer.modules.bearings.lastServiceMiles)} ago · interval ${formatMiles(trailer.modules.bearings.intervalMiles)}`}
             status={trailer.modules.bearings.lastServiceMiles > trailer.modules.bearings.intervalMiles ? "attention" : "operational"}
+            onPress={() => openRepairTicket("Bearings", `Last serviced ${trailer.modules.bearings.lastServiceMiles.toLocaleString()} mi ago (interval: ${trailer.modules.bearings.intervalMiles.toLocaleString()} mi)`)}
           />
           <View style={{ marginTop: 8 }}>
             <MetricBar
@@ -131,7 +139,7 @@ export default function TrailerDetail() {
         <Card>
           <MetricBar label="Brake wear remaining" value={trailer.modules.brakes.wearPct} />
           <View style={styles.divider} />
-          <ModuleRow icon={<Wrench color={Colors.cyan} size={16} />} label="Last adjustment" value={trailer.modules.brakes.lastAdjust} status={trailer.modules.brakes.wearPct < 25 ? "out" : trailer.modules.brakes.wearPct < 50 ? "attention" : "operational"} />
+          <ModuleRow icon={<Wrench color={Colors.cyan} size={16} />} label="Last adjustment" value={trailer.modules.brakes.lastAdjust} status={trailer.modules.brakes.wearPct < 25 ? "out" : trailer.modules.brakes.wearPct < 50 ? "attention" : "operational"} onPress={() => openRepairTicket("Brakes", `Brake wear at ${trailer.modules.brakes.wearPct}%`)} />
         </Card>
 
         <SectionHeader kicker="Maintenance" title="Tires" />
@@ -145,23 +153,23 @@ export default function TrailerDetail() {
 
         <SectionHeader kicker="Maintenance" title="Lighting" />
         <Card>
-          <ModuleRow icon={<Lightbulb color={Colors.cyan} size={16} />} label="Brake lights" value="Stop & turn signals" status={trailer.modules.lighting.brake} />
+          <ModuleRow icon={<Lightbulb color={Colors.cyan} size={16} />} label="Brake lights" value="Stop & turn signals" status={trailer.modules.lighting.brake} onPress={() => openRepairTicket("Brake lights", "Inspect stop & turn signals")} />
           <Divider />
-          <ModuleRow icon={<Lightbulb color={Colors.cyan} size={16} />} label="Marker lights" value="Side & clearance" status={trailer.modules.lighting.marker} />
+          <ModuleRow icon={<Lightbulb color={Colors.cyan} size={16} />} label="Marker lights" value="Side & clearance" status={trailer.modules.lighting.marker} onPress={() => openRepairTicket("Marker lights", "Inspect side & clearance lights")} />
           <Divider />
-          <ModuleRow icon={<Lightbulb color={Colors.cyan} size={16} />} label="Wiring" value="7-pin harness" status={trailer.modules.lighting.wiring} />
+          <ModuleRow icon={<Lightbulb color={Colors.cyan} size={16} />} label="Wiring" value="7-pin harness" status={trailer.modules.lighting.wiring} onPress={() => openRepairTicket("Lighting wiring", "Inspect 7-pin harness")} />
         </Card>
 
         <SectionHeader kicker="Maintenance" title="Straps & Chains" />
         <Card>
-          <ModuleRow icon={<Layers color={Colors.cyan} size={16} />} label="Inventory" value={`${trailer.modules.straps.goodCount} good · ${trailer.modules.straps.replaceSoon} replace soon`} status={trailer.modules.straps.replaceSoon > 2 ? "attention" : "operational"} />
+          <ModuleRow icon={<Layers color={Colors.cyan} size={16} />} label="Inventory" value={`${trailer.modules.straps.goodCount} good · ${trailer.modules.straps.replaceSoon} replace soon`} status={trailer.modules.straps.replaceSoon > 2 ? "attention" : "operational"} onPress={() => openRepairTicket("Straps & chains", `${trailer.modules.straps.replaceSoon} straps need replacement`)} />
           <Divider />
           <ModuleRow icon={<Calendar color={Colors.cyan} size={16} />} label="Next replacement" value={trailer.modules.straps.replaceDate} status="operational" />
         </Card>
 
         <SectionHeader kicker="Maintenance" title="Ramps & Winch" />
         <Card>
-          <ModuleRow icon={<Anchor color={Colors.cyan} size={16} />} label="Ramps operational" value="Loading & retract" status={trailer.modules.ramps.operational} />
+          <ModuleRow icon={<Anchor color={Colors.cyan} size={16} />} label="Ramps operational" value="Loading & retract" status={trailer.modules.ramps.operational} onPress={() => openRepairTicket("Ramps", "Inspect loading & retract mechanisms")} />
           <View style={{ marginTop: 12 }}>
             <MetricBar label="Winch cable life" value={100 - trailer.modules.ramps.cableWearPct} good={70} warn={40} />
           </View>
@@ -169,11 +177,11 @@ export default function TrailerDetail() {
 
         <SectionHeader kicker="Maintenance" title="Deck Condition" />
         <Card>
-          <ModuleRow icon={<Layers color={Colors.cyan} size={16} />} label="Rust" value="Deck surface" status={trailer.modules.deck.rust} />
+          <ModuleRow icon={<Layers color={Colors.cyan} size={16} />} label="Rust" value="Deck surface" status={trailer.modules.deck.rust} onPress={() => openRepairTicket("Deck — Rust", "Inspect deck surface for corrosion")} />
           <Divider />
-          <ModuleRow icon={<Layers color={Colors.cyan} size={16} />} label="Cracking" value="Stress points" status={trailer.modules.deck.cracking} />
+          <ModuleRow icon={<Layers color={Colors.cyan} size={16} />} label="Cracking" value="Stress points" status={trailer.modules.deck.cracking} onPress={() => openRepairTicket("Deck — Cracking", "Inspect stress points")} />
           <Divider />
-          <ModuleRow icon={<Wrench color={Colors.cyan} size={16} />} label="Weld inspection" value="Joints & supports" status={trailer.modules.deck.welds} />
+          <ModuleRow icon={<Wrench color={Colors.cyan} size={16} />} label="Weld inspection" value="Joints & supports" status={trailer.modules.deck.welds} onPress={() => openRepairTicket("Deck — Welds", "Inspect joints & supports")} />
         </Card>
 
         {/* Service Schedules */}
@@ -193,13 +201,15 @@ export default function TrailerDetail() {
 
         {/* Maintenance Lockout Warning */}
         {getMaintenanceLockState(trailer.id).locked && (
-          <View style={styles.lockoutBanner}>
-            <ShieldAlert color={Colors.urgencyBlinkRed} size={18} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.lockoutTitle}>Maintenance Lockout Active</Text>
-              <Text style={styles.lockoutDesc}>{getMaintenanceLockState(trailer.id).reason}</Text>
+          <Pressable onPress={() => openRepairTicket("Critical lockout", getMaintenanceLockState(trailer.id).reason)}>
+            <View style={styles.lockoutBanner}>
+              <ShieldAlert color={Colors.urgencyBlinkRed} size={18} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.lockoutTitle}>Maintenance Lockout Active</Text>
+                <Text style={styles.lockoutDesc}>{getMaintenanceLockState(trailer.id).reason}</Text>
+              </View>
             </View>
-          </View>
+          </Pressable>
         )}
 
         {/* Warranty */}
@@ -217,7 +227,7 @@ export default function TrailerDetail() {
                 <View style={styles.repairHeader}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.repairWo}>WO: {rec.workOrderNumber}</Text>
-                    <Text style={styles.repairMeta}>{rec.completionDate}{rec.odometerAtService ? ` · ${rec.odometerAtService.toLocaleString()} mi` : ""} · ${rec.totalCost}</Text>
+                    <Text style={styles.repairMeta}>{formatRepairMeta(rec.completionDate, rec.odometerAtService, rec.totalCost)}</Text>
                   </View>
                   <View style={[styles.providerBadge, {
                     backgroundColor: rec.serviceProvider === "internal" ? "rgba(94,231,255,0.12)" : "rgba(255,181,71,0.12)",
@@ -284,6 +294,15 @@ export default function TrailerDetail() {
 
         {/* Asset Blueprint Drawer */}
         <AssetBlueprint visible={blueprintOpen} asset={trailer} kind="trailer" onClose={() => setBlueprintOpen(false)} />
+
+        {/* Shop Repair Ticket Drawer */}
+        <ShopRepairTicket
+          visible={repairTicket.open}
+          asset={trailer}
+          componentLabel={repairTicket.component}
+          initialNotes={repairTicket.notes}
+          onClose={closeRepairTicket}
+        />
       </Screen>
     </>
   );

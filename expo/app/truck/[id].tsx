@@ -22,9 +22,11 @@ import ServiceScheduleCard from "@/components/ServiceScheduleCard";
 import TruckSilhouette from "@/components/TruckSilhouette";
 import TruckFuelTab from "@/components/TruckFuelTab";
 import WarrantyBanner from "@/components/WarrantyBanner";
+import ShopRepairTicket from "@/components/ShopRepairTicket";
 import { Colors, statusMeta } from "@/constants/colors";
 import { truckSubtypeMeta, serviceUrgencyMeta, serviceTypeMeta, serviceProviderMeta } from "@/constants/mockData";
 import { useFleet } from "@/providers/FleetProvider";
+import { formatMiles, formatDecimal, formatServiceDue, formatVolts, formatRepairMeta, formatMilesCompact } from "@/utils/format";
 
 type TruckTab = "overview" | "fuel";
 
@@ -33,6 +35,10 @@ export default function TruckDetail() {
   const { getTruck, getTrailer, getCurrentOperator, getServiceUrgency, getWarrantyCoverage, getMaintenanceLockState } = useFleet();
   const [blueprintOpen, setBlueprintOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TruckTab>("overview");
+  const [repairTicket, setRepairTicket] = useState<{ open: boolean; component: string; notes: string }>({ open: false, component: "", notes: "" });
+
+  const openRepairTicket = (component: string, notes = "") => setRepairTicket({ open: true, component, notes });
+  const closeRepairTicket = () => setRepairTicket({ open: false, component: "", notes: "" });
   const truck = getTruck(id ?? "");
   if (!truck) return <Screen><Text style={{ color: Colors.text }}>Truck not found</Text></Screen>;
 
@@ -48,7 +54,7 @@ export default function TruckDetail() {
   return (
     <>
       <Stack.Screen options={{ title: truck.nickname }} />
-      <Screen>
+      <Screen scroll={false}>
         {/* Segmented Tab Control */}
         <View style={styles.tabBar}>
           {tabs.map((tab) => (
@@ -109,8 +115,8 @@ export default function TruckDetail() {
             <InspectionSyncBadge lastInspectionAt={truck.lastInspectionAt} lastInspectionResult={truck.lastInspectionResult} />
           </View>
           <View style={styles.kvGrid}>
-            <KV icon={<Gauge color={Colors.electric} size={14} />} label="Mileage" value={`${truck.mileage.toLocaleString()} mi`} />
-            <KV icon={<Fuel color={Colors.electric} size={14} />} label="Avg MPG" value={`${truck.avgMpg.toFixed(1)}`} />
+            <KV icon={<Gauge color={Colors.electric} size={14} />} label="Mileage" value={formatMiles(truck.mileage)} />
+            <KV icon={<Fuel color={Colors.electric} size={14} />} label="Avg MPG" value={formatDecimal(truck.avgMpg)} />
             <KV icon={<IdCard color={Colors.electric} size={14} />} label="Plate" value={`${truck.plate} · ${truck.state}`} />
             <KV icon={<FileText color={Colors.electric} size={14} />} label="VIN" value={truck.vin} />
           </View>
@@ -147,23 +153,23 @@ export default function TruckDetail() {
         {/* Modules */}
         <SectionHeader kicker="Maintenance" title="Engine" />
         <Card>
-          <ModuleRow icon={<Droplet color={Colors.cyan} size={16} />} label="Oil service" value={truck.modules.engine.oilDueIn < 0 ? `Overdue ${Math.abs(truck.modules.engine.oilDueIn).toLocaleString()} mi` : `Due in ${truck.modules.engine.oilDueIn.toLocaleString()} mi`} status={truck.modules.engine.oilDueIn < 0 ? "out" : truck.modules.engine.oilDueIn < 2000 ? "attention" : "operational"} />
+          <ModuleRow icon={<Droplet color={Colors.cyan} size={16} />} label="Oil service" value={formatServiceDue(truck.modules.engine.oilDueIn)} status={truck.modules.engine.oilDueIn < 0 ? "out" : truck.modules.engine.oilDueIn < 2000 ? "attention" : "operational"} onPress={() => openRepairTicket("Oil service", `Oil service ${truck.modules.engine.oilDueIn < 0 ? "overdue by " + Math.abs(truck.modules.engine.oilDueIn).toLocaleString() + " mi" : "due in " + truck.modules.engine.oilDueIn.toLocaleString() + " mi"}`)} />
           <Divider />
           <ModuleRow icon={<Plug color={Colors.cyan} size={16} />} label="DEF level" value={`${truck.modules.engine.defLevel}%`} status={truck.modules.engine.defLevel < 15 ? "out" : truck.modules.engine.defLevel < 35 ? "attention" : "operational"} />
           <View style={{ marginTop: 8 }}>
             <MetricBar label="DEF tank" value={truck.modules.engine.defLevel} good={50} warn={20} />
           </View>
           <Divider />
-          <ModuleRow icon={<Thermometer color={Colors.cyan} size={16} />} label="Coolant" value="Reservoir & temp" status={truck.modules.engine.coolant} />
+          <ModuleRow icon={<Thermometer color={Colors.cyan} size={16} />} label="Coolant" value="Reservoir & temp" status={truck.modules.engine.coolant} onPress={() => openRepairTicket("Coolant system", "Check reservoir level and operating temperature")} />
           <Divider />
-          <ModuleRow icon={<Wind color={Colors.cyan} size={16} />} label="Belts" value="Serpentine & accessory" status={truck.modules.engine.belts} />
+          <ModuleRow icon={<Wind color={Colors.cyan} size={16} />} label="Belts" value="Serpentine & accessory" status={truck.modules.engine.belts} onPress={() => openRepairTicket("Belts", "Inspect serpentine & accessory belts")} />
         </Card>
 
         <SectionHeader kicker="Maintenance" title="Transmission" />
         <Card>
-          <ModuleRow icon={<Cog color={Colors.cyan} size={16} />} label="Fluid service" value={`Due in ${truck.modules.transmission.fluidDueIn.toLocaleString()} mi`} status={truck.modules.transmission.fluidDueIn < 5000 ? "attention" : "operational"} />
+          <ModuleRow icon={<Cog color={Colors.cyan} size={16} />} label="Fluid service" value={formatServiceDue(truck.modules.transmission.fluidDueIn)} status={truck.modules.transmission.fluidDueIn < 5000 ? "attention" : "operational"} onPress={() => openRepairTicket("Transmission fluid", `Fluid service due in ${truck.modules.transmission.fluidDueIn.toLocaleString()} mi`)} />
           <Divider />
-          <ModuleRow icon={<Settings2 color={Colors.cyan} size={16} />} label="Service interval" value={`${truck.modules.transmission.serviceInterval.toLocaleString()} mi`} status="operational" />
+          <ModuleRow icon={<Settings2 color={Colors.cyan} size={16} />} label="Service interval" value={formatMiles(truck.modules.transmission.serviceInterval)} status="operational" />
         </Card>
 
         <SectionHeader kicker="Maintenance" title="Brakes" />
@@ -171,7 +177,7 @@ export default function TruckDetail() {
           <View style={{ gap: 14 }}>
             <MetricBar label="Pad life" value={truck.modules.brakes.padPct} />
             <MetricBar label="Rotor life" value={truck.modules.brakes.rotorPct} />
-            <ModuleRow icon={<Droplet color={Colors.cyan} size={16} />} label="Brake fluid" value="Reservoir level" status={truck.modules.brakes.fluid} />
+            <ModuleRow icon={<Droplet color={Colors.cyan} size={16} />} label="Brake fluid" value="Reservoir level" status={truck.modules.brakes.fluid} onPress={() => openRepairTicket("Brake fluid", "Check reservoir level and fluid condition")} />
           </View>
         </Card>
 
@@ -181,7 +187,7 @@ export default function TruckDetail() {
             <MetricBar label="Tread remaining" value={truck.modules.tires.wearPct} />
             <View style={styles.miniRow}>
               <MiniStat label="Age" value={`${truck.modules.tires.ageMonths} mo`} />
-              <MiniStat label="Last rotation" value={`${truck.modules.tires.lastRotation.toLocaleString()} mi`} />
+              <MiniStat label="Last rotation" value={formatMilesCompact(truck.modules.tires.lastRotation)} />
               <MiniStat label="Blowouts" value={`${truck.modules.tires.blowouts}`} />
             </View>
           </View>
@@ -189,18 +195,18 @@ export default function TruckDetail() {
 
         <SectionHeader kicker="Maintenance" title="Suspension" />
         <Card>
-          <ModuleRow icon={<CircleDot color={Colors.cyan} size={16} />} label="Airbags" value="Pressure & condition" status={truck.modules.suspension.airbags} />
+          <ModuleRow icon={<CircleDot color={Colors.cyan} size={16} />} label="Airbags" value="Pressure & condition" status={truck.modules.suspension.airbags} onPress={() => openRepairTicket("Airbags", "Check pressure & condition")} />
           <Divider />
-          <ModuleRow icon={<Disc color={Colors.cyan} size={16} />} label="Shocks & springs" value="Damping & ride height" status={truck.modules.suspension.shocks} />
+          <ModuleRow icon={<Disc color={Colors.cyan} size={16} />} label="Shocks & springs" value="Damping & ride height" status={truck.modules.suspension.shocks} onPress={() => openRepairTicket("Shocks & springs", "Check damping & ride height")} />
         </Card>
 
         <SectionHeader kicker="Maintenance" title="Electrical" />
         <Card>
-          <ModuleRow icon={<Battery color={Colors.cyan} size={16} />} label="Battery" value={`${truck.modules.electrical.batteryVolts.toFixed(1)} V resting`} status={truck.modules.electrical.batteryVolts < 12.2 ? "attention" : "operational"} />
+          <ModuleRow icon={<Battery color={Colors.cyan} size={16} />} label="Battery" value={`${formatVolts(truck.modules.electrical.batteryVolts)} resting`} status={truck.modules.electrical.batteryVolts < 12.2 ? "attention" : "operational"} onPress={() => openRepairTicket("Battery", `Resting voltage ${truck.modules.electrical.batteryVolts.toFixed(1)} V`)} />
           <Divider />
-          <ModuleRow icon={<Zap color={Colors.cyan} size={16} />} label="Alternator" value="Charging output" status={truck.modules.electrical.alternator} />
+          <ModuleRow icon={<Zap color={Colors.cyan} size={16} />} label="Alternator" value="Charging output" status={truck.modules.electrical.alternator} onPress={() => openRepairTicket("Alternator", "Check charging output")} />
           <Divider />
-          <ModuleRow icon={<Plug color={Colors.cyan} size={16} />} label="Trailer wiring" value="7-pin harness" status={truck.modules.electrical.trailerWiring} />
+          <ModuleRow icon={<Plug color={Colors.cyan} size={16} />} label="Trailer wiring" value="7-pin harness" status={truck.modules.electrical.trailerWiring} onPress={() => openRepairTicket("Trailer wiring", "Inspect 7-pin harness")} />
         </Card>
 
         <SectionHeader kicker="Compliance" title="DOT & Documents" />
@@ -229,13 +235,15 @@ export default function TruckDetail() {
 
         {/* Maintenance Lockout Warning */}
         {getMaintenanceLockState(truck.id).locked && (
-          <View style={styles.lockoutBanner}>
-            <ShieldAlert color={Colors.urgencyBlinkRed} size={18} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.lockoutTitle}>Maintenance Lockout Active</Text>
-              <Text style={styles.lockoutDesc}>{getMaintenanceLockState(truck.id).reason}</Text>
+          <Pressable onPress={() => openRepairTicket("Critical lockout", getMaintenanceLockState(truck.id).reason)}>
+            <View style={styles.lockoutBanner}>
+              <ShieldAlert color={Colors.urgencyBlinkRed} size={18} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.lockoutTitle}>Maintenance Lockout Active</Text>
+                <Text style={styles.lockoutDesc}>{getMaintenanceLockState(truck.id).reason}</Text>
+              </View>
             </View>
-          </View>
+          </Pressable>
         )}
 
         {/* Warranty */}
@@ -253,7 +261,7 @@ export default function TruckDetail() {
                 <View style={styles.repairHeader}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.repairWo}>WO: {rec.workOrderNumber}</Text>
-                    <Text style={styles.repairMeta}>{rec.completionDate}{rec.odometerAtService ? ` · ${rec.odometerAtService.toLocaleString()} mi` : ""} · ${rec.totalCost}</Text>
+                    <Text style={styles.repairMeta}>{formatRepairMeta(rec.completionDate, rec.odometerAtService, rec.totalCost)}</Text>
                   </View>
                   <View style={[styles.providerBadge, {
                     backgroundColor: rec.serviceProvider === "internal" ? "rgba(94,231,255,0.12)" : "rgba(255,181,71,0.12)",
@@ -325,6 +333,15 @@ export default function TruckDetail() {
 
         {/* Asset Blueprint Drawer */}
         <AssetBlueprint visible={blueprintOpen} asset={truck} kind="truck" onClose={() => setBlueprintOpen(false)} />
+
+        {/* Shop Repair Ticket Drawer */}
+        <ShopRepairTicket
+          visible={repairTicket.open}
+          asset={truck}
+          componentLabel={repairTicket.component}
+          initialNotes={repairTicket.notes}
+          onClose={closeRepairTicket}
+        />
       </Screen>
     </>
   );
