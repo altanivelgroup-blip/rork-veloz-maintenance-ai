@@ -658,6 +658,288 @@ export const INSPECTIONS: Inspection[] = [
   },
 ];
 
+// ══════════════════════════════════════════════
+// Drivers — Operator Registry
+// ══════════════════════════════════════════════
+
+export type Driver = {
+  id: string;
+  name: string;
+  licenseNumber: string;
+  phone: string;
+  status: "on_duty" | "off_duty" | "on_break";
+  currentSessionId?: string;
+};
+
+// ══════════════════════════════════════════════
+// Cargo Manifest — Loaded Vehicle Registry
+// ══════════════════════════════════════════════
+
+export type CargoItem = {
+  vin: string;
+  make: string;
+  model: string;
+  year: number;
+  color: string;
+  slot: number;
+};
+
+// ══════════════════════════════════════════════
+// Session Modification — Trailer Swap Event
+// ══════════════════════════════════════════════
+
+export type SessionModification = {
+  id: string;
+  timestamp: string;
+  previousTrailerId: string;
+  newTrailerId: string;
+  reason?: string;
+};
+
+// ══════════════════════════════════════════════
+// Active Equipment Session — Live Relationship Engine
+// ══════════════════════════════════════════════
+
+export type EquipmentSession = {
+  sessionId: string;
+  operatorId: string;
+  operatorName: string;
+  truckId: string;
+  trailerId?: string;
+  cargoManifest: CargoItem[];
+  status: "active" | "completed";
+  startOdometer: number;
+  endOdometer?: number;
+  startLocation?: string;
+  endLocation?: string;
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+  modifications: SessionModification[];
+};
+
+// ══════════════════════════════════════════════
+// Session History — DOT Compliance Audit Trail
+// ══════════════════════════════════════════════
+
+export type SessionHistoryEntry = {
+  id: string;
+  sessionId: string;
+  operatorId: string;
+  operatorName: string;
+  truckId: string;
+  truckName: string;
+  trailerId?: string;
+  trailerName?: string;
+  cargoCount: number;
+  cargoSnapshot: CargoItem[];
+  startTime: string;
+  endTime: string;
+  totalDurationHours: number;
+  startOdometer: number;
+  endOdometer: number;
+  milesDriven: number;
+  startLocation?: string;
+  endLocation?: string;
+  swapCount: number;
+  completedBy: string;
+};
+
+export const DRIVERS: Driver[] = [
+  { id: "d1", name: "Maria Reyes", licenseNumber: "CDL-487921-TX", phone: "(512) 555-0143", status: "on_duty", currentSessionId: "sesh-001" },
+  { id: "d2", name: "James Carter", licenseNumber: "CDL-552109-TX", phone: "(210) 555-0178", status: "on_duty", currentSessionId: "sesh-002" },
+  { id: "d3", name: "Sanjay Patel", licenseNumber: "CDL-339874-TX", phone: "(713) 555-0192", status: "off_duty" },
+  { id: "d4", name: "Derrick Thompson", licenseNumber: "CDL-771234-TX", phone: "(214) 555-0167", status: "on_break" },
+];
+
+const ACTIVE_SESSIONS: EquipmentSession[] = [
+  {
+    sessionId: "sesh-001",
+    operatorId: "d1",
+    operatorName: "Maria Reyes",
+    truckId: "t1",
+    trailerId: "tr1",
+    cargoManifest: [
+      { vin: "1G1ZD5ST•••••4401", make: "Chevrolet", model: "Malibu", year: 2024, color: "Silver", slot: 1 },
+      { vin: "5XXGT4L3•••••8922", make: "Kia", model: "Optima", year: 2023, color: "White", slot: 2 },
+      { vin: "2HGFC2F5•••••3310", make: "Honda", model: "Civic", year: 2025, color: "Blue", slot: 3 },
+    ],
+    status: "active",
+    startOdometer: 148160,
+    startLocation: "Houston Terminal B",
+    createdAt: "2026-06-30T06:20:00Z",
+    updatedAt: "2026-06-30T06:20:00Z",
+    modifications: [],
+  },
+  {
+    sessionId: "sesh-002",
+    operatorId: "d2",
+    operatorName: "James Carter",
+    truckId: "t2",
+    trailerId: "tr2",
+    cargoManifest: [
+      { vin: "3FA6P0H7•••••5599", make: "Ford", model: "Fusion", year: 2023, color: "Black", slot: 1 },
+      { vin: "1N4BL4DV•••••7744", make: "Nissan", model: "Altima", year: 2024, color: "Red", slot: 2 },
+    ],
+    status: "active",
+    startOdometer: 211750,
+    startLocation: "Dallas Hub A",
+    createdAt: "2026-06-29T14:40:00Z",
+    updatedAt: "2026-06-29T14:40:00Z",
+    modifications: [],
+  },
+];
+
+const SESSION_HISTORY: SessionHistoryEntry[] = [
+  {
+    id: "hist-001",
+    sessionId: "sesh-098",
+    operatorId: "d1",
+    operatorName: "Maria Reyes",
+    truckId: "t1",
+    truckName: "Veloz 01",
+    trailerId: "tr1",
+    trailerName: "Wedge 40",
+    cargoCount: 3,
+    cargoSnapshot: [
+      { vin: "WBA8E3G5•••••1122", make: "BMW", model: "330i", year: 2024, color: "Gray", slot: 1 },
+      { vin: "WAUBNCF5•••••3314", make: "Audi", model: "A4", year: 2023, color: "Silver", slot: 2 },
+      { vin: "JTHBF5C2•••••8877", make: "Lexus", model: "IS 350", year: 2025, color: "White", slot: 3 },
+    ],
+    startTime: "2026-06-29T06:15:00Z",
+    endTime: "2026-06-29T18:42:00Z",
+    totalDurationHours: 12.45,
+    startOdometer: 147880,
+    endOdometer: 148100,
+    milesDriven: 220,
+    startLocation: "Houston Terminal B",
+    endLocation: "San Antonio Drop Lot",
+    swapCount: 0,
+    completedBy: "Maria Reyes",
+  },
+  {
+    id: "hist-002",
+    sessionId: "sesh-097",
+    operatorId: "d2",
+    operatorName: "James Carter",
+    truckId: "t2",
+    truckName: "Veloz 02",
+    trailerId: "tr2",
+    trailerName: "Gooseneck 36",
+    cargoCount: 2,
+    cargoSnapshot: [
+      { vin: "4S3BNAB6•••••2233", make: "Subaru", model: "Legacy", year: 2024, color: "Green", slot: 1 },
+      { vin: "JF1VA1E6•••••9944", make: "Subaru", model: "WRX", year: 2023, color: "Blue", slot: 2 },
+    ],
+    startTime: "2026-06-28T05:50:00Z",
+    endTime: "2026-06-28T17:10:00Z",
+    totalDurationHours: 11.33,
+    startOdometer: 211600,
+    endOdometer: 211730,
+    milesDriven: 130,
+    startLocation: "Dallas Hub A",
+    endLocation: "Fort Worth Depot",
+    swapCount: 0,
+    completedBy: "James Carter",
+  },
+  {
+    id: "hist-003",
+    sessionId: "sesh-096",
+    operatorId: "d1",
+    operatorName: "Maria Reyes",
+    truckId: "t1",
+    truckName: "Veloz 01",
+    trailerId: "tr4",
+    trailerName: "Skid Hauler",
+    cargoCount: 2,
+    cargoSnapshot: [
+      { vin: "1HGCV1F3•••••5566", make: "Honda", model: "Accord", year: 2025, color: "Black", slot: 1 },
+      { vin: "KMHL64JA•••••9988", make: "Hyundai", model: "Sonata", year: 2024, color: "White", slot: 2 },
+    ],
+    startTime: "2026-06-27T06:00:00Z",
+    endTime: "2026-06-27T19:30:00Z",
+    totalDurationHours: 13.5,
+    startOdometer: 147500,
+    endOdometer: 147860,
+    milesDriven: 360,
+    startLocation: "Houston Terminal B",
+    endLocation: "Austin Yard",
+    swapCount: 1,
+    completedBy: "Maria Reyes",
+  },
+  {
+    id: "hist-004",
+    sessionId: "sesh-095",
+    operatorId: "d3",
+    operatorName: "Sanjay Patel",
+    truckId: "t3",
+    truckName: "Veloz 03",
+    trailerId: "tr1",
+    trailerName: "Wedge 40",
+    cargoCount: 3,
+    cargoSnapshot: [
+      { vin: "1FTEW1E5•••••4455", make: "Ford", model: "F-150", year: 2025, color: "Red", slot: 1 },
+      { vin: "3C6UR5FL•••••1123", make: "Ram", model: "2500", year: 2024, color: "White", slot: 2 },
+      { vin: "1GT42YE8•••••6678", make: "GMC", model: "Sierra 1500", year: 2025, color: "Black", slot: 3 },
+    ],
+    startTime: "2026-06-27T07:10:00Z",
+    endTime: "2026-06-27T20:15:00Z",
+    totalDurationHours: 13.08,
+    startOdometer: 38000,
+    endOdometer: 38350,
+    milesDriven: 350,
+    startLocation: "Austin Yard",
+    endLocation: "Houston Terminal B",
+    swapCount: 0,
+    completedBy: "Sanjay Patel",
+  },
+  {
+    id: "hist-005",
+    sessionId: "sesh-094",
+    operatorId: "d2",
+    operatorName: "James Carter",
+    truckId: "t2",
+    truckName: "Veloz 02",
+    cargoCount: 0,
+    cargoSnapshot: [],
+    startTime: "2026-06-25T08:00:00Z",
+    endTime: "2026-06-25T16:30:00Z",
+    totalDurationHours: 8.5,
+    startOdometer: 211000,
+    endOdometer: 211550,
+    milesDriven: 550,
+    startLocation: "Dallas Hub A",
+    endLocation: "Dallas Hub A",
+    swapCount: 0,
+    completedBy: "James Carter",
+  },
+  {
+    id: "hist-006",
+    sessionId: "sesh-093",
+    operatorId: "d4",
+    operatorName: "Derrick Thompson",
+    truckId: "t5",
+    truckName: "Veloz 05",
+    trailerId: "tr4",
+    trailerName: "Skid Hauler",
+    cargoCount: 2,
+    cargoSnapshot: [
+      { vin: "WMWXP7C5•••••3344", make: "MINI", model: "Cooper S", year: 2025, color: "Yellow", slot: 1 },
+      { vin: "WBS3R9C5•••••1100", make: "BMW", model: "M3", year: 2024, color: "Green", slot: 2 },
+    ],
+    startTime: "2026-06-24T06:30:00Z",
+    endTime: "2026-06-24T18:45:00Z",
+    totalDurationHours: 12.25,
+    startOdometer: 67500,
+    endOdometer: 67880,
+    milesDriven: 380,
+    startLocation: "Austin Yard",
+    endLocation: "San Antonio Drop Lot",
+    swapCount: 0,
+    completedBy: "Derrick Thompson",
+  },
+];
+
 export const FLEET_AI = {
   readiness: 78,
   downtimeRisk: "Low" as "Low" | "Medium" | "High",

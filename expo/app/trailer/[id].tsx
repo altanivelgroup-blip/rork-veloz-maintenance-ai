@@ -23,12 +23,13 @@ import { useFleet } from "@/providers/FleetProvider";
 
 export default function TrailerDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { getTrailer, getTruck } = useFleet();
+  const { getTrailer, getTruck, getCurrentOperator } = useFleet();
   const [blueprintOpen, setBlueprintOpen] = useState(false);
   const trailer = getTrailer(id ?? "");
   if (!trailer) return <Screen><Text style={{ color: Colors.text }}>Trailer not found</Text></Screen>;
 
   const truck = trailer.assignedTruckId ? getTruck(trailer.assignedTruckId) : undefined;
+  const operator = getCurrentOperator(trailer.id);
   const subtypeInfo = trailerSubtypeMeta[trailer.subtype];
 
   return (
@@ -45,6 +46,12 @@ export default function TrailerDetail() {
               <View style={{ marginTop: 8, gap: 6 }}>
                 <RoadReadyBadge status={trailer.roadReadyStatus} />
                 <AvailabilityBadge state={trailer.availability} />
+                <View style={styles.operatorRow}>
+                  <Text style={styles.operatorLabel}>Current Operator </Text>
+                  <Text style={[styles.operatorName, { color: operator ? Colors.cyan : Colors.textDim }]}>
+                    {operator ? operator.name : "Unmanned — Staged"}
+                  </Text>
+                </View>
               </View>
             </View>
             <HealthGauge value={trailer.health} size={104} label="Health" />
@@ -289,4 +296,7 @@ const styles = StyleSheet.create({
   uploadText: { color: Colors.cyan, fontSize: 11, fontWeight: "800", letterSpacing: 0.8 },
   inspectCta: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, padding: 16, borderRadius: 16, backgroundColor: "#1E5BFF", marginTop: 4 },
   inspectCtaText: { color: "#fff", fontSize: 15, fontWeight: "800" },
+  operatorRow: { flexDirection: "row", alignItems: "center", paddingVertical: 4, paddingHorizontal: 10, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.03)", borderWidth: 1, borderColor: Colors.border, alignSelf: "flex-start" },
+  operatorLabel: { color: Colors.textMuted, fontSize: 10, fontWeight: "700", letterSpacing: 0.6, textTransform: "uppercase" },
+  operatorName: { fontSize: 11, fontWeight: "800" },
 });

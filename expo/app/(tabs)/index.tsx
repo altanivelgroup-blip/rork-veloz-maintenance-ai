@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import { Activity, AlertTriangle, ArrowRight, Calendar, CheckCircle, ChevronRight, Clock, Container, DollarSign, Fuel, Route, ShieldCheck, Truck, Wrench, Zap } from "lucide-react-native";
 import React, { useMemo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import ActiveSessionMatrix from "@/components/ActiveSessionMatrix";
 import Card from "@/components/Card";
 import HealthGauge from "@/components/HealthGauge";
 import InsightCard from "@/components/InsightCard";
@@ -15,7 +16,7 @@ import { availabilityMeta } from "@/constants/mockData";
 import { useFleet } from "@/providers/FleetProvider";
 
 export default function DashboardScreen() {
-  const { fleetHealth, counts, trucks, trailers, allInsights, ai, inspections, availabilityCounts, expiredInspections } = useFleet();
+  const { fleetHealth, counts, trucks, trailers, allInsights, ai, inspections, availabilityCounts, expiredInspections, activeSessions } = useFleet();
 
   const topInsights = allInsights.slice(0, 3);
   const upcomingInspections = useMemo(() => {
@@ -74,6 +75,10 @@ export default function DashboardScreen() {
         <StatTile icon={<AlertTriangle color={Colors.amber} size={18} />} label="Alerts" value={`${allInsights.filter((i) => i.severity !== "info").length}`} caption="active" />
         <StatTile icon={<Wrench color={Colors.red} size={18} />} label="Overdue" value={`${ai.predictions.filter((p) => p.eta === "Now").length}`} caption="services" />
       </View>
+
+      {/* Active Session Matrix */}
+      <SectionHeader kicker="Live Operations" title="Active Session Matrix" />
+      <ActiveSessionMatrix sessions={activeSessions} />
 
       {/* Availability Matrix */}
       <SectionHeader kicker="Dispatch" title="Availability Matrix" />

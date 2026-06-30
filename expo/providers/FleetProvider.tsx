@@ -2,10 +2,12 @@ import createContextHook from "@nkzw/create-context-hook";
 import { useCallback, useMemo, useState } from "react";
 
 import {
-  TRUCKS, TRAILERS, INSPECTIONS, FLEET_AI,
+  TRUCKS, TRAILERS, INSPECTIONS, FLEET_AI, DRIVERS,
   getInspectionStatus, INSPECTION_EXPIRY_HOURS,
-  type Truck, type Trailer, type Inspection,
+  type Truck, type Trailer, type Inspection, type Driver,
   type AvailabilityState, type RoadReadyStatus,
+  type EquipmentSession, type SessionHistoryEntry,
+  type SessionModification, type CargoItem,
 } from "@/constants/mockData";
 import {
   INCIDENTS,
@@ -139,6 +141,333 @@ export const [FleetProvider, useFleet] = createContextHook(() => {
   }, [trucks, trailers]);
 
   // ══════════════════════════════════════════════
+  // Live Equipment Sessions — Asset Relationship Engine
+  // ══════════════════════════════════════════════
+
+  const [sessions, setSessions] = useState<EquipmentSession[]>([
+    {
+      sessionId: "sesh-001",
+      operatorId: "d1",
+      operatorName: "Maria Reyes",
+      truckId: "t1",
+      trailerId: "tr1",
+      cargoManifest: [
+        { vin: "1G1ZD5ST•••••4401", make: "Chevrolet", model: "Malibu", year: 2024, color: "Silver", slot: 1 },
+        { vin: "5XXGT4L3•••••8922", make: "Kia", model: "Optima", year: 2023, color: "White", slot: 2 },
+        { vin: "2HGFC2F5•••••3310", make: "Honda", model: "Civic", year: 2025, color: "Blue", slot: 3 },
+      ],
+      status: "active",
+      startOdometer: 148160,
+      startLocation: "Houston Terminal B",
+      createdAt: "2026-06-30T06:20:00Z",
+      updatedAt: "2026-06-30T06:20:00Z",
+      modifications: [],
+    },
+    {
+      sessionId: "sesh-002",
+      operatorId: "d2",
+      operatorName: "James Carter",
+      truckId: "t2",
+      trailerId: "tr2",
+      cargoManifest: [
+        { vin: "3FA6P0H7•••••5599", make: "Ford", model: "Fusion", year: 2023, color: "Black", slot: 1 },
+        { vin: "1N4BL4DV•••••7744", make: "Nissan", model: "Altima", year: 2024, color: "Red", slot: 2 },
+      ],
+      status: "active",
+      startOdometer: 211750,
+      startLocation: "Dallas Hub A",
+      createdAt: "2026-06-29T14:40:00Z",
+      updatedAt: "2026-06-29T14:40:00Z",
+      modifications: [],
+    },
+  ]);
+
+  const [sessionHistory, setSessionHistory] = useState<SessionHistoryEntry[]>([
+    {
+      id: "hist-001", sessionId: "sesh-098", operatorId: "d1", operatorName: "Maria Reyes",
+      truckId: "t1", truckName: "Veloz 01", trailerId: "tr1", trailerName: "Wedge 40",
+      cargoCount: 3, cargoSnapshot: [],
+      startTime: "2026-06-29T06:15:00Z", endTime: "2026-06-29T18:42:00Z",
+      totalDurationHours: 12.45, startOdometer: 147880, endOdometer: 148100, milesDriven: 220,
+      startLocation: "Houston Terminal B", endLocation: "San Antonio Drop Lot",
+      swapCount: 0, completedBy: "Maria Reyes",
+    },
+    {
+      id: "hist-002", sessionId: "sesh-097", operatorId: "d2", operatorName: "James Carter",
+      truckId: "t2", truckName: "Veloz 02", trailerId: "tr2", trailerName: "Gooseneck 36",
+      cargoCount: 2, cargoSnapshot: [],
+      startTime: "2026-06-28T05:50:00Z", endTime: "2026-06-28T17:10:00Z",
+      totalDurationHours: 11.33, startOdometer: 211600, endOdometer: 211730, milesDriven: 130,
+      startLocation: "Dallas Hub A", endLocation: "Fort Worth Depot",
+      swapCount: 0, completedBy: "James Carter",
+    },
+    {
+      id: "hist-003", sessionId: "sesh-096", operatorId: "d1", operatorName: "Maria Reyes",
+      truckId: "t1", truckName: "Veloz 01", trailerId: "tr4", trailerName: "Skid Hauler",
+      cargoCount: 2, cargoSnapshot: [],
+      startTime: "2026-06-27T06:00:00Z", endTime: "2026-06-27T19:30:00Z",
+      totalDurationHours: 13.5, startOdometer: 147500, endOdometer: 147860, milesDriven: 360,
+      startLocation: "Houston Terminal B", endLocation: "Austin Yard",
+      swapCount: 1, completedBy: "Maria Reyes",
+    },
+    {
+      id: "hist-004", sessionId: "sesh-095", operatorId: "d3", operatorName: "Sanjay Patel",
+      truckId: "t3", truckName: "Veloz 03", trailerId: "tr1", trailerName: "Wedge 40",
+      cargoCount: 3, cargoSnapshot: [],
+      startTime: "2026-06-27T07:10:00Z", endTime: "2026-06-27T20:15:00Z",
+      totalDurationHours: 13.08, startOdometer: 38000, endOdometer: 38350, milesDriven: 350,
+      startLocation: "Austin Yard", endLocation: "Houston Terminal B",
+      swapCount: 0, completedBy: "Sanjay Patel",
+    },
+    {
+      id: "hist-005", sessionId: "sesh-094", operatorId: "d2", operatorName: "James Carter",
+      truckId: "t2", truckName: "Veloz 02",
+      cargoCount: 0, cargoSnapshot: [],
+      startTime: "2026-06-25T08:00:00Z", endTime: "2026-06-25T16:30:00Z",
+      totalDurationHours: 8.5, startOdometer: 211000, endOdometer: 211550, milesDriven: 550,
+      startLocation: "Dallas Hub A", endLocation: "Dallas Hub A",
+      swapCount: 0, completedBy: "James Carter",
+    },
+    {
+      id: "hist-006", sessionId: "sesh-093", operatorId: "d4", operatorName: "Derrick Thompson",
+      truckId: "t5", truckName: "Veloz 05", trailerId: "tr4", trailerName: "Skid Hauler",
+      cargoCount: 2, cargoSnapshot: [],
+      startTime: "2026-06-24T06:30:00Z", endTime: "2026-06-24T18:45:00Z",
+      totalDurationHours: 12.25, startOdometer: 67500, endOdometer: 67880, milesDriven: 380,
+      startLocation: "Austin Yard", endLocation: "San Antonio Drop Lot",
+      swapCount: 0, completedBy: "Derrick Thompson",
+    },
+  ]);
+
+  const activeSessions = useMemo(() => sessions.filter((s) => s.status === "active"), [sessions]);
+
+  /** Find the active operator for any equipment (truck or trailer) */
+  const getCurrentOperator = useCallback(
+    (equipmentId: string): Driver | null => {
+      const session = activeSessions.find(
+        (s) => s.truckId === equipmentId || s.trailerId === equipmentId,
+      );
+      if (!session) return null;
+      return DRIVERS.find((d) => d.id === session.operatorId) ?? null;
+    },
+    [activeSessions],
+  );
+
+  /** Conflict check — ensure driver, truck, or trailer doesn't already have an active session */
+  const sessionConflictCheck = useCallback(
+    (operatorId: string, truckId: string, trailerId?: string): { ok: true } | { ok: false; conflict: string } => {
+      const opConflict = activeSessions.find((s) => s.operatorId === operatorId);
+      if (opConflict) return { ok: false, conflict: `Driver already in active session ${opConflict.sessionId}.` };
+      const trkConflict = activeSessions.find((s) => s.truckId === truckId);
+      if (trkConflict) return { ok: false, conflict: `Truck already in active session ${trkConflict.sessionId}.` };
+      if (trailerId) {
+        const trlConflict = activeSessions.find((s) => s.trailerId === trailerId);
+        if (trlConflict) return { ok: false, conflict: `Trailer already in active session ${trlConflict.sessionId}.` };
+      }
+      return { ok: true };
+    },
+    [activeSessions],
+  );
+
+  /** Hook-In — create session when driver completes pre-trip + check-in */
+  const createSession = useCallback(
+    (params: {
+      operatorId: string;
+      truckId: string;
+      trailerId?: string;
+      cargoManifest?: CargoItem[];
+      startLocation?: string;
+    }): { ok: true; session: EquipmentSession } | { ok: false; error: string } => {
+      const driver = DRIVERS.find((d) => d.id === params.operatorId);
+      const truck = trucks.find((t) => t.id === params.truckId);
+      if (!driver) return { ok: false, error: "Driver not found." };
+      if (!truck) return { ok: false, error: "Truck not found." };
+
+      if (truck.roadReadyStatus === "out_of_service") {
+        return { ok: false, error: "Cannot create session: truck is Out of Service (Dead-Red)." };
+      }
+      if (params.trailerId) {
+        const trailer = trailers.find((t) => t.id === params.trailerId);
+        if (trailer?.roadReadyStatus === "out_of_service") {
+          return { ok: false, error: "Cannot create session: trailer is Out of Service (Dead-Red)." };
+        }
+      }
+
+      const conflict = sessionConflictCheck(params.operatorId, params.truckId, params.trailerId);
+      if (!conflict.ok) return { ok: false, error: `Concurrency Exception: ${conflict.conflict}` };
+
+      const now = new Date().toISOString();
+      const session: EquipmentSession = {
+        sessionId: `sesh-${String(sessions.length + 1).padStart(3, "0")}`,
+        operatorId: params.operatorId,
+        operatorName: driver.name,
+        truckId: params.truckId,
+        trailerId: params.trailerId,
+        cargoManifest: params.cargoManifest ?? [],
+        status: "active",
+        startOdometer: truck.mileage,
+        startLocation: params.startLocation,
+        createdAt: now,
+        updatedAt: now,
+        modifications: [],
+      };
+
+      setSessions((prev) => [session, ...prev]);
+      // Update equipment availability to assigned
+      setTrucks((prev) => prev.map((t) => (t.id === params.truckId ? { ...t, availability: "assigned" as AvailabilityState } : t)));
+      if (params.trailerId) {
+        setTrailers((prev) =>
+          prev.map((t) => (t.id === params.trailerId ? { ...t, availability: "assigned" as AvailabilityState, assignedTruckId: params.truckId } : t)),
+        );
+      }
+      return { ok: true, session };
+    },
+    [trucks, trailers, sessions, sessionConflictCheck],
+  );
+
+  /** Swap-Out — atomic trailer swap during active session */
+  const modifySessionTrailer = useCallback(
+    (sessionId: string, newTrailerId: string, reason?: string): { ok: true } | { ok: false; error: string } => {
+      const session = sessions.find((s) => s.sessionId === sessionId);
+      if (!session || session.status !== "active") return { ok: false, error: "Session not found or not active." };
+
+      const newTrailer = trailers.find((t) => t.id === newTrailerId);
+      if (!newTrailer) return { ok: false, error: "Trailer not found." };
+      if (newTrailer.roadReadyStatus === "out_of_service") {
+        return { ok: false, error: "Cannot swap: trailer is Out of Service." };
+      }
+
+      const trlConflict = activeSessions.find((s) => s.sessionId !== sessionId && s.trailerId === newTrailerId);
+      if (trlConflict) return { ok: false, error: `Concurrency Exception: Trailer already active in session ${trlConflict.sessionId}.` };
+
+      const now = new Date().toISOString();
+      const mod: SessionModification = {
+        id: `mod-${Date.now()}`,
+        timestamp: now,
+        previousTrailerId: session.trailerId ?? "",
+        newTrailerId,
+        reason,
+      };
+
+      // Release old trailer
+      if (session.trailerId) {
+        setTrailers((prev) =>
+          prev.map((t) => (t.id === session.trailerId ? { ...t, availability: "available" as AvailabilityState, assignedTruckId: undefined } : t)),
+        );
+      }
+      // Assign new trailer
+      setTrailers((prev) =>
+        prev.map((t) => (t.id === newTrailerId ? { ...t, availability: "assigned" as AvailabilityState, assignedTruckId: session.truckId } : t)),
+      );
+
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.sessionId === sessionId
+            ? { ...s, trailerId: newTrailerId, cargoManifest: [], modifications: [...s.modifications, mod], updatedAt: now }
+            : s,
+        ),
+      );
+      return { ok: true };
+    },
+    [sessions, trailers, activeSessions],
+  );
+
+  /** Release — terminate session, archive to history, free assets */
+  const terminateSession = useCallback(
+    (sessionId: string, endLocation?: string): { ok: true; history: SessionHistoryEntry } | { ok: false; error: string } => {
+      const session = sessions.find((s) => s.sessionId === sessionId);
+      if (!session || session.status !== "active") return { ok: false, error: "Session not found or not active." };
+
+      const truck = trucks.find((t) => t.id === session.truckId);
+      if (!truck) return { ok: false, error: "Truck not found in fleet." };
+
+      const now = new Date().toISOString();
+      const startTime = new Date(session.createdAt).getTime();
+      const endTime = Date.now();
+      const totalDurationHours = (endTime - startTime) / (1000 * 60 * 60);
+      const endOdometer = truck.mileage;
+      const milesDriven = endOdometer - session.startOdometer;
+
+      const historyEntry: SessionHistoryEntry = {
+        id: `hist-${String(sessionHistory.length + 1).padStart(3, "0")}`,
+        sessionId: session.sessionId,
+        operatorId: session.operatorId,
+        operatorName: session.operatorName,
+        truckId: session.truckId,
+        truckName: truck.nickname,
+        trailerId: session.trailerId,
+        trailerName: session.trailerId ? trailers.find((t) => t.id === session.trailerId)?.nickname : undefined,
+        cargoCount: session.cargoManifest.length,
+        cargoSnapshot: [...session.cargoManifest],
+        startTime: session.createdAt,
+        endTime: now,
+        totalDurationHours: Math.round(totalDurationHours * 100) / 100,
+        startOdometer: session.startOdometer,
+        endOdometer,
+        milesDriven: Math.max(0, milesDriven),
+        startLocation: session.startLocation,
+        endLocation: endLocation ?? session.endLocation,
+        swapCount: session.modifications.length,
+        completedBy: session.operatorName,
+      };
+
+      // Archive to history
+      setSessionHistory((prev) => [historyEntry, ...prev]);
+
+      // Mark session completed
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.sessionId === sessionId
+            ? { ...s, status: "completed", completedAt: now, endOdometer, endLocation, updatedAt: now }
+            : s,
+        ),
+      );
+
+      // Release all assets back to available
+      setTrucks((prev) =>
+        prev.map((t) =>
+          t.id === session.truckId ? { ...t, availability: "available" as AvailabilityState, assignedTrailerId: undefined } : t,
+        ),
+      );
+      if (session.trailerId) {
+        setTrailers((prev) =>
+          prev.map((t) =>
+            t.id === session.trailerId ? { ...t, availability: "available" as AvailabilityState, assignedTruckId: undefined } : t,
+          ),
+        );
+      }
+
+      return { ok: true, history: historyEntry };
+    },
+    [sessions, sessionHistory, trucks, trailers],
+  );
+
+  /** DOT Compliance — query audit trail for any asset within a date range */
+  const getSessionHistoryForAsset = useCallback(
+    (assetId: string, since?: string, until?: string): SessionHistoryEntry[] => {
+      return sessionHistory.filter((h) => {
+        const matches = h.truckId === assetId || h.trailerId === assetId;
+        if (!matches) return false;
+        if (since && h.startTime < since) return false;
+        if (until && h.endTime > until) return false;
+        return true;
+      });
+    },
+    [sessionHistory],
+  );
+
+  /** Get all operators for a specific asset across all completed sessions (DOT audit) */
+  const getOperatorsForAsset = useCallback(
+    (assetId: string): string[] => {
+      const names = sessionHistory
+        .filter((h) => h.truckId === assetId || h.trailerId === assetId)
+        .map((h) => h.operatorName);
+      return [...new Set(names)];
+    },
+    [sessionHistory],
+  );
+
+  // ══════════════════════════════════════════════
   // Orphan Prevention — collision-checked assignment
   // ══════════════════════════════════════════════
 
@@ -217,5 +546,15 @@ export const [FleetProvider, useFleet] = createContextHook(() => {
     expiredInspections,
     assignTrailerToTruck,
     unassignTrailer,
+    // Live Sessions
+    sessions,
+    sessionHistory,
+    activeSessions,
+    getCurrentOperator,
+    createSession,
+    modifySessionTrailer,
+    terminateSession,
+    getSessionHistoryForAsset,
+    getOperatorsForAsset,
   };
 });
