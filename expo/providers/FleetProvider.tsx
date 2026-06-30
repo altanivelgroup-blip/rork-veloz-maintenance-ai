@@ -20,6 +20,13 @@ import {
   type OperationalResolutionStatus,
 } from "@/constants/mockData";
 import {
+  calcTruckCPM,
+  calcFleetCPM,
+  getCPMProportions,
+  type CPMBreakdown,
+  type TimeframeKey,
+} from "@/lib/cpmAccounting";
+import {
   INCIDENTS,
   buildIncident,
   incidentStats,
@@ -869,6 +876,44 @@ export const [FleetProvider, useFleet] = createContextHook(() => {
   );
 
   // ══════════════════════════════════════════════
+  // Fuel Intelligence — CPM Blueprint
+  // ══════════════════════════════════════════════
+
+  /** All repair records from trucks + trailers */
+  const allRepairRecords = useMemo(() => {
+    const records: RepairRecord[] = [];
+    trucks.forEach((t) => records.push(...t.repairRecords));
+    trailers.forEach((t) => records.push(...t.repairRecords));
+    return records;
+  }, [trucks, trailers]);
+
+  /** Get CPM breakdown for a single truck over a timeframe */
+  const getTruckCPM = useCallback(
+    (truckId: string, timeframe: TimeframeKey): CPMBreakdown =>
+      calcTruckCPM(truckId, timeframe, fuelTransactions, allRepairRecords),
+    [fuelTransactions, allRepairRecords],
+  );
+
+  /** Fleet-wide aggregate CPM (computed for 30d by default) */
+  const fleetCPM = useMemo(
+    () => calcFleetCPM("30d", fuelTransactions, allRepairRecords, trucks),
+    [fuelTransactions, allRepairRecords, trucks],
+  );
+
+  /** Fleet CPM for a specific timeframe */
+  const getFleetCPM = useCallback(
+    (timeframe: TimeframeKey) =>
+      calcFleetCPM(timeframe, fuelTransactions, allRepairRecords, trucks),
+    [fuelTransactions, allRepairRecords, trucks],
+  );
+
+  /** Get proportional shares for stacked bar */
+  const getCPMShare = useCallback(
+    (breakdown: CPMBreakdown) => getCPMProportions(breakdown),
+    [],
+  );
+
+  // ══════════════════════════════════════════════
   // Orphan Prevention — collision-checked assignment
   // ══════════════════════════════════════════════
 
@@ -971,6 +1016,11 @@ export const [FleetProvider, useFleet] = createContextHook(() => {
     getFuelCPM,
     fuelEfficiencyRanking,
     fuelAnomalies,
+    // CPM Blueprint
+    getTruckCPM,
+    fleetCPM,
+    getFleetCPM,
+    getCPMShare,
     // Operations — Couplings, Vault, Triage
     couplings,
     vaultEntries,

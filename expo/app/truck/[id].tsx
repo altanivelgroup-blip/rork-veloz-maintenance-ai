@@ -4,7 +4,7 @@ import {
   Fuel, Gauge, IdCard, Info, Link as LinkIcon, Plug, Settings2, ShieldCheck, Thermometer, Wind, Wrench, Zap, ShieldAlert,
 } from "lucide-react-native";
 import React, { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import AssetBlueprint from "@/components/AssetBlueprint";
 import AvailabilityBadge from "@/components/AvailabilityBadge";
 import Card from "@/components/Card";
@@ -19,15 +19,19 @@ import SectionHeader from "@/components/SectionHeader";
 import ServiceScheduleCard from "@/components/ServiceScheduleCard";
 import StatusBadge from "@/components/StatusBadge";
 import TruckSilhouette from "@/components/TruckSilhouette";
+import TruckFuelTab from "@/components/TruckFuelTab";
 import WarrantyBanner from "@/components/WarrantyBanner";
 import { Colors, statusMeta } from "@/constants/colors";
 import { truckSubtypeMeta, serviceUrgencyMeta, serviceTypeMeta, serviceProviderMeta } from "@/constants/mockData";
 import { useFleet } from "@/providers/FleetProvider";
 
+type TruckTab = "overview" | "fuel";
+
 export default function TruckDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getTruck, getTrailer, getCurrentOperator, getServiceUrgency, getWarrantyCoverage, getMaintenanceLockState } = useFleet();
   const [blueprintOpen, setBlueprintOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<TruckTab>("overview");
   const truck = getTruck(id ?? "");
   if (!truck) return <Screen><Text style={{ color: Colors.text }}>Truck not found</Text></Screen>;
 
@@ -35,10 +39,40 @@ export default function TruckDetail() {
   const operator = getCurrentOperator(truck.id);
   const subtypeInfo = truckSubtypeMeta[truck.subtype];
 
+  const tabs: { key: TruckTab; label: string }[] = [
+    { key: "overview", label: "Overview" },
+    { key: "fuel", label: "Fuel & Efficiency" },
+  ];
+
   return (
     <>
       <Stack.Screen options={{ title: truck.nickname }} />
       <Screen>
+        {/* Segmented Tab Control */}
+        <View style={styles.tabBar}>
+          {tabs.map((tab) => (
+            <Pressable
+              key={tab.key}
+              onPress={() => setActiveTab(tab.key)}
+              style={[
+                styles.tab,
+                activeTab === tab.key && styles.tabActive,
+              ]}
+            >
+              <Text style={[
+                styles.tabText,
+                activeTab === tab.key && styles.tabTextActive,
+              ]}>
+                {tab.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {activeTab === "fuel" ? (
+          <TruckFuelTab truck={truck} />
+        ) : (
+          <ScrollView showsVerticalScrollIndicator={false}>
         {/* Hero */}
         <Card glow={truck.roadReadyStatus !== "road_ready"}>
           <View style={{ flexDirection: "row", alignItems: "center" }}>
@@ -311,6 +345,10 @@ export default function TruckDetail() {
         {/* Asset Incident History */}
         <AssetIncidentHistory assetId={truck.id} assetName={truck.nickname} />
 
+        <View style={{ height: 80 }} />
+          </ScrollView>
+        )}
+
         {/* Asset Blueprint Drawer */}
         <AssetBlueprint visible={blueprintOpen} asset={truck} kind="truck" onClose={() => setBlueprintOpen(false)} />
       </Screen>
@@ -412,4 +450,31 @@ const styles = StyleSheet.create({
   lineType: { color: Colors.textMuted, fontSize: 11, marginTop: 2 },
   lineNote: { color: Colors.textDim, fontSize: 11, marginTop: 2, fontStyle: "italic" },
   recNotes: { color: Colors.textDim, fontSize: 11, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.05)", fontStyle: "italic" },
+  // Tab bar
+  tabBar: {
+    flexDirection: "row",
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderRadius: 14,
+    padding: 4,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 11,
+    alignItems: "center",
+  },
+  tabActive: {
+    backgroundColor: Colors.panelHi,
+  },
+  tabText: {
+    color: Colors.textDim,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  tabTextActive: {
+    color: Colors.cyan,
+  },
 });

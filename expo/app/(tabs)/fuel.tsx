@@ -1,17 +1,32 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { AlertTriangle, ArrowDown, ArrowUp, DollarSign, Droplets, Fuel, Gauge, Minus, ShieldAlert } from "lucide-react-native";
-import React, { useMemo } from "react";
-import { FlatList, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useMemo, useState } from "react";
+import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Card from "@/components/Card";
+import CPMBreakdownChart from "@/components/CPMBreakdownChart";
 import FuelAnomalyCard from "@/components/FuelAnomalyCard";
 import FuelEfficiencyRow from "@/components/FuelEfficiencyRow";
+import FuelTransactionDetailPanel from "@/components/FuelTransactionDetailPanel";
 import Screen from "@/components/Screen";
 import SectionHeader from "@/components/SectionHeader";
 import { Colors, Gradients } from "@/constants/colors";
+import type { FuelTransaction } from "@/constants/mockData";
+import { timeframeLabels } from "@/lib/cpmAccounting";
 import { useFleet } from "@/providers/FleetProvider";
 
 export default function FuelScreen() {
-  const { fuelSummary, fuelEfficiencyRanking, fuelAnomalies } = useFleet();
+  const { fuelSummary, fuelEfficiencyRanking, fuelAnomalies, fleetCPM, fuelTransactions } = useFleet();
+  const [detailTxn, setDetailTxn] = useState<FuelTransaction | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+
+  const openDetail = (txn: FuelTransaction) => {
+    setDetailTxn(txn);
+    setDetailOpen(true);
+  };
+  const closeDetail = () => {
+    setDetailOpen(false);
+    setDetailTxn(null);
+  };
 
   const weekTrend = useMemo(() => {
     const prev = fuelSummary.weekSpend > 2000 ? "up" : "down";
@@ -106,6 +121,9 @@ export default function FuelScreen() {
         </Card>
       </ScrollView>
 
+      {/* Operating CPM Blueprint */}
+      <CPMBreakdownChart fleetCPM={fleetCPM} selectedTimeframe={timeframeLabels["30d"]} />
+
       {/* Anomalous Fuel Exception Panel */}
       {fuelAnomalies.length > 0 && (
         <View style={{ marginBottom: 10 }}>
@@ -120,7 +138,9 @@ export default function FuelScreen() {
             }
           />
           {fuelAnomalies.map((tx) => (
-            <FuelAnomalyCard key={tx.transactionId} transaction={tx as any} />
+            <Pressable key={tx.transactionId} onPress={() => openDetail(tx)}>
+              <FuelAnomalyCard transaction={tx as any} />
+            </Pressable>
           ))}
         </View>
       )}
@@ -155,6 +175,13 @@ export default function FuelScreen() {
 
       {/* Bottom spacing */}
       <View style={{ height: 100 }} />
+
+      {/* Transaction Detail Panel */}
+      <FuelTransactionDetailPanel
+        visible={detailOpen}
+        transaction={detailTxn}
+        onClose={closeDetail}
+      />
     </Screen>
   );
 }
