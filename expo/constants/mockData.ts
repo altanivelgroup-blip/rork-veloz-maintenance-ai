@@ -1461,3 +1461,244 @@ export const FLEET_AI = {
     { id: "p5", title: "Gooseneck 36 — Bearing repack", eta: "Now", severity: "warn" as const },
   ],
 };
+
+// ══════════════════════════════════════════════
+// Fuel Intelligence — Transaction, MPG & CPM Engine
+// ══════════════════════════════════════════════
+
+export type FuelType = "diesel" | "reefer" | "def";
+
+export const fuelTypeMeta: Record<FuelType, { label: string; color: string }> = {
+  diesel: { label: "Diesel", color: "#5EE7FF" },
+  reefer: { label: "Reefer", color: "#22D399" },
+  def: { label: "DEF", color: "#7CC4FF" },
+};
+
+export type FuelTransaction = {
+  transactionId: string;
+  fuelCardNumber: string;
+  authTimestamp: string;
+  assetId: string;
+  assetName: string;
+  driverId: string;
+  driverName: string;
+  vendorName: string;
+  locationGps: { lat: number; lng: number };
+  gallonsPumped: number;
+  fuelType: FuelType;
+  pricePerGallon: number;
+  totalAmount: number;
+  odometerAtFill: number;
+  flagged?: FuelFraudFlag | null;
+};
+
+export type FuelFraudFlag = {
+  type: "capacity_exceeded" | "location_mismatch" | "rapid_consumption";
+  severity: "high" | "medium";
+  detail: string;
+  flaggedAt: string;
+};
+
+export const fraudFlagMeta: Record<FuelFraudFlag["type"], { label: string; icon: string }> = {
+  capacity_exceeded: { label: "Exceeds Tank Capacity", icon: "gauge" },
+  location_mismatch: { label: "Location Mismatch", icon: "map-pin" },
+  rapid_consumption: { label: "Rapid Consumption", icon: "flame" },
+};
+
+/** MPG baseline benchmarks per truck subtype + typical load */
+export type MPGBaseline = {
+  subtype: TruckSubtype;
+  loadDesc: string;
+  baselineMpg: number;
+  minAcceptable: number;
+};
+
+export const MPG_BASELINES: MPGBaseline[] = [
+  { subtype: "daycab", loadDesc: "Light load / bobtail", baselineMpg: 10.5, minAcceptable: 8.9 },
+  { subtype: "daycab", loadDesc: "2-car trailer", baselineMpg: 9.5, minAcceptable: 8.1 },
+  { subtype: "daycab", loadDesc: "3-4 car wedge", baselineMpg: 8.5, minAcceptable: 7.2 },
+  { subtype: "sleeper", loadDesc: "Light load / bobtail", baselineMpg: 11.0, minAcceptable: 9.4 },
+  { subtype: "sleeper", loadDesc: "2-car trailer", baselineMpg: 10.0, minAcceptable: 8.5 },
+  { subtype: "sleeper", loadDesc: "3-4 car wedge", baselineMpg: 9.0, minAcceptable: 7.7 },
+  { subtype: "heavy_duty", loadDesc: "5-9 car stinger", baselineMpg: 6.5, minAcceptable: 5.5 },
+  { subtype: "heavy_duty", loadDesc: "3-4 car wedge", baselineMpg: 7.5, minAcceptable: 6.4 },
+];
+
+/** Get the best-matching MPG baseline for a truck + trailer combo */
+export function getMPGBaseline(truck: Truck, trailer?: Trailer): MPGBaseline {
+  const candidates = MPG_BASELINES.filter((b) => b.subtype === truck.subtype);
+  if (!trailer) return candidates.find((c) => c.loadDesc.includes("bobtail")) ?? candidates[0];
+  const cap = trailer.carCapacity;
+  if (cap <= 2) return candidates.find((c) => c.loadDesc.includes("2-car")) ?? candidates[0];
+  if (cap <= 4) return candidates.find((c) => c.loadDesc.includes("3-4")) ?? candidates[0];
+  return candidates.find((c) => c.loadDesc.includes("5-9")) ?? candidates[0];
+}
+
+/** Calculate MPG from two consecutive fills: MPG = (odometer_B - odometer_A) / gallons_pumped_at_B */
+export function calcMPG(prevOdometer: number, currentOdometer: number, gallons: number): number {
+  if (gallons <= 0) return 0;
+  const miles = currentOdometer - prevOdometer;
+  if (miles <= 0) return 0;
+  return Math.round((miles / gallons) * 10) / 10;
+}
+
+/** Rolling 3-fill MPG average for a given truck from its transaction history */
+export function calcRollingMPG(transactions: FuelTransaction[], truckId: string): { mpg: number; fills: number; trend: "up" | "down" | "stable" } {
+  const truckFills = transactions
+    .filter((t) => t.assetId === truckId && t.fuelType === "diesel")
+    .sort((a, b) => new Date(a.authTimestamp).getTime() - new Date(b.authTimestamp).getTime());
+
+  if (truckFills.length < 2) return { mpg: 0, fills: truckFills.length, trend: "stable" };
+
+  const mpgs: number[] = [];
+  for (let i = 1; i < truckFills.length; i++) {
+    const m = calcMPG(truckFills[i - 1].odometerAtFill, truckFills[i].odometerAtFill, truckFills[i].gallonsPumped);
+    if (m > 0 && m < 30) mpgs.push(m); // sanity bounds
+  }
+
+  if (mpgs.length === 0) return { mpg: 0, fills: truckFills.length, trend: "stable" };
+
+  const recent = mpgs.slice(-3);
+  const avg = Math.round((recent.reduce((a, b) => a + b, 0) / recent.length) * 10) / 10;
+
+  let trend: "up" | "down" | "stable" = "stable";
+  if (recent.length >= 2) {
+    const half = Math.ceil(recent.length / 2);
+    const firstHalf = recent.slice(0, half);
+    const secondHalf = recent.slice(-half);
+    const firstAvg = firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length;
+    const secondAvg = secondHalf.reduce((a, b) => a + b, 0) / secondHalf.length;
+    if (secondAvg > firstAvg + 0.3) trend = "up";
+    else if (secondAvg < firstAvg - 0.3) trend = "down";
+  }
+
+  return { mpg: avg, fills: truckFills.length, trend };
+}
+
+/** Detect mechanical degradation: rolling MPG > 15% below baseline */
+export function checkMPGDegradation(
+  truck: Truck,
+  trailer: Trailer | undefined,
+  transactions: FuelTransaction[],
+): { degraded: boolean; currentMpg: number; baselineMpg: number; dropPct: number; alert: string | null } {
+  const rolling = calcRollingMPG(transactions, truck.id);
+  if (rolling.mpg <= 0) return { degraded: false, currentMpg: rolling.mpg, baselineMpg: 0, dropPct: 0, alert: null };
+
+  const baseline = getMPGBaseline(truck, trailer);
+  const dropPct = Math.round(((baseline.baselineMpg - rolling.mpg) / baseline.baselineMpg) * 100);
+  const degraded = dropPct > 15;
+
+  return {
+    degraded,
+    currentMpg: rolling.mpg,
+    baselineMpg: baseline.baselineMpg,
+    dropPct,
+    alert: degraded
+      ? `Performance Degraded: MPG ${dropPct}% below baseline. Check air filters, tire pressure, or fuel injectors.`
+      : null,
+  };
+}
+
+/** Fuel Cost Per Mile: total fuel spend / total miles */
+export function calcFuelCPM(transactions: FuelTransaction[], truckId: string): { totalSpend: number; totalMiles: number; cpm: number } {
+  const fills = transactions
+    .filter((t) => t.assetId === truckId && t.fuelType === "diesel")
+    .sort((a, b) => new Date(a.authTimestamp).getTime() - new Date(b.authTimestamp).getTime());
+
+  let totalSpend = 0;
+  let totalMiles = 0;
+
+  for (let i = 1; i < fills.length; i++) {
+    totalSpend += fills[i].totalAmount;
+    const miles = fills[i].odometerAtFill - fills[i - 1].odometerAtFill;
+    if (miles > 0 && miles < 2000) totalMiles += miles; // sanity cap per leg
+  }
+
+  const cpm = totalMiles > 0 ? Math.round((totalSpend / totalMiles) * 1000) / 1000 : 0;
+  return { totalSpend, totalMiles, cpm };
+}
+
+/** Mock fuel transactions — simulating real fuel card network data */
+export const FUEL_TRANSACTIONS: FuelTransaction[] = [
+  // Veloz 01 — Maria Reyes (Houston → San Antonio runs)
+  { transactionId: "ft-001", fuelCardNumber: "FC-8821-01", authTimestamp: "2026-06-30T08:15:00Z", assetId: "t1", assetName: "Veloz 01", driverId: "d1", driverName: "Maria Reyes", vendorName: "Pilot Flying J", locationGps: { lat: 29.7604, lng: -95.3698 }, gallonsPumped: 28.4, fuelType: "diesel", pricePerGallon: 3.499, totalAmount: 99.37, odometerAtFill: 148200 },
+  { transactionId: "ft-002", fuelCardNumber: "FC-8821-01", authTimestamp: "2026-06-29T14:05:00Z", assetId: "t1", assetName: "Veloz 01", driverId: "d1", driverName: "Maria Reyes", vendorName: "Love's Travel Stop", locationGps: { lat: 29.4241, lng: -98.4936 }, gallonsPumped: 31.2, fuelType: "diesel", pricePerGallon: 3.419, totalAmount: 106.67, odometerAtFill: 147980 },
+  { transactionId: "ft-003", fuelCardNumber: "FC-8821-01", authTimestamp: "2026-06-27T12:30:00Z", assetId: "t1", assetName: "Veloz 01", driverId: "d1", driverName: "Maria Reyes", vendorName: "TA Travel Center", locationGps: { lat: 30.2672, lng: -97.7431 }, gallonsPumped: 27.8, fuelType: "diesel", pricePerGallon: 3.459, totalAmount: 96.16, odometerAtFill: 147620 },
+  { transactionId: "ft-004", fuelCardNumber: "FC-8821-01", authTimestamp: "2026-06-25T09:45:00Z", assetId: "t1", assetName: "Veloz 01", driverId: "d1", driverName: "Maria Reyes", vendorName: "Pilot Flying J", locationGps: { lat: 29.7604, lng: -95.3698 }, gallonsPumped: 29.1, fuelType: "diesel", pricePerGallon: 3.479, totalAmount: 101.24, odometerAtFill: 147300 },
+  { transactionId: "ft-005", fuelCardNumber: "FC-8821-01", authTimestamp: "2026-06-23T16:20:00Z", assetId: "t1", assetName: "Veloz 01", driverId: "d1", driverName: "Maria Reyes", vendorName: "Love's Travel Stop", locationGps: { lat: 31.5493, lng: -97.1467 }, gallonsPumped: 30.5, fuelType: "diesel", pricePerGallon: 3.439, totalAmount: 104.89, odometerAtFill: 146950 },
+
+  // Veloz 02 — James Carter (Dallas area)
+  { transactionId: "ft-006", fuelCardNumber: "FC-5521-02", authTimestamp: "2026-06-30T07:10:00Z", assetId: "t2", assetName: "Veloz 02", driverId: "d2", driverName: "James Carter", vendorName: "Pilot Flying J", locationGps: { lat: 32.7767, lng: -96.7970 }, gallonsPumped: 33.7, fuelType: "diesel", pricePerGallon: 3.479, totalAmount: 117.24, odometerAtFill: 211800 },
+  { transactionId: "ft-007", fuelCardNumber: "FC-5521-02", authTimestamp: "2026-06-28T15:40:00Z", assetId: "t2", assetName: "Veloz 02", driverId: "d2", driverName: "James Carter", vendorName: "Love's Travel Stop", locationGps: { lat: 32.7555, lng: -97.3308 }, gallonsPumped: 25.9, fuelType: "diesel", pricePerGallon: 3.429, totalAmount: 88.81, odometerAtFill: 211460 },
+  { transactionId: "ft-008", fuelCardNumber: "FC-5521-02", authTimestamp: "2026-06-25T11:30:00Z", assetId: "t2", assetName: "Veloz 02", driverId: "d2", driverName: "James Carter", vendorName: "TA Travel Center", locationGps: { lat: 32.7767, lng: -96.7970 }, gallonsPumped: 53.0, fuelType: "diesel", pricePerGallon: 3.399, totalAmount: 180.15, odometerAtFill: 211090 },
+
+  // Veloz 03 — Sanjay Patel (Austin runs)
+  { transactionId: "ft-009", fuelCardNumber: "FC-3398-03", authTimestamp: "2026-06-29T10:20:00Z", assetId: "t3", assetName: "Veloz 03", driverId: "d3", driverName: "Sanjay Patel", vendorName: "Pilot Flying J", locationGps: { lat: 30.2672, lng: -97.7431 }, gallonsPumped: 22.1, fuelType: "diesel", pricePerGallon: 3.489, totalAmount: 77.11, odometerAtFill: 38300 },
+  { transactionId: "ft-010", fuelCardNumber: "FC-3398-03", authTimestamp: "2026-06-27T08:00:00Z", assetId: "t3", assetName: "Veloz 03", driverId: "d3", driverName: "Sanjay Patel", vendorName: "Love's Travel Stop", locationGps: { lat: 29.7604, lng: -95.3698 }, gallonsPumped: 24.8, fuelType: "diesel", pricePerGallon: 3.419, totalAmount: 84.79, odometerAtFill: 38050 },
+  { transactionId: "ft-011", fuelCardNumber: "FC-3398-03", authTimestamp: "2026-06-23T13:45:00Z", assetId: "t3", assetName: "Veloz 03", driverId: "d3", driverName: "Sanjay Patel", vendorName: "TA Travel Center", locationGps: { lat: 30.2672, lng: -97.7431 }, gallonsPumped: 20.5, fuelType: "diesel", pricePerGallon: 3.469, totalAmount: 71.11, odometerAtFill: 37700 },
+
+  // Veloz 04 — Derrick Thompson (heavy hauler, in shop now)
+  { transactionId: "ft-012", fuelCardNumber: "FC-7712-04", authTimestamp: "2026-06-22T14:00:00Z", assetId: "t4", assetName: "Veloz 04", driverId: "d4", driverName: "Derrick Thompson", vendorName: "Pilot Flying J", locationGps: { lat: 31.5493, lng: -97.1467 }, gallonsPumped: 42.1, fuelType: "diesel", pricePerGallon: 3.399, totalAmount: 143.10, odometerAtFill: 287100 },
+  { transactionId: "ft-013", fuelCardNumber: "FC-7712-04", authTimestamp: "2026-06-20T09:30:00Z", assetId: "t4", assetName: "Veloz 04", driverId: "d4", driverName: "Derrick Thompson", vendorName: "Love's Travel Stop", locationGps: { lat: 32.7767, lng: -96.7970 }, gallonsPumped: 38.9, fuelType: "diesel", pricePerGallon: 3.449, totalAmount: 134.17, odometerAtFill: 286700 },
+  { transactionId: "ft-014", fuelCardNumber: "FC-7712-04", authTimestamp: "2026-06-18T16:15:00Z", assetId: "t4", assetName: "Veloz 04", driverId: "d4", driverName: "Derrick Thompson", vendorName: "TA Travel Center", locationGps: { lat: 29.4241, lng: -98.4936 }, gallonsPumped: 40.3, fuelType: "diesel", pricePerGallon: 3.429, totalAmount: 138.19, odometerAtFill: 286250 },
+
+  // Veloz 05 — Occasional duty (available)
+  { transactionId: "ft-015", fuelCardNumber: "FC-9984-05", authTimestamp: "2026-06-28T08:45:00Z", assetId: "t5", assetName: "Veloz 05", driverId: "d4", driverName: "Derrick Thompson", vendorName: "Pilot Flying J", locationGps: { lat: 30.2672, lng: -97.7431 }, gallonsPumped: 26.3, fuelType: "diesel", pricePerGallon: 3.479, totalAmount: 91.50, odometerAtFill: 67800 },
+  { transactionId: "ft-016", fuelCardNumber: "FC-9984-05", authTimestamp: "2026-06-24T10:00:00Z", assetId: "t5", assetName: "Veloz 05", driverId: "d4", driverName: "Derrick Thompson", vendorName: "Love's Travel Stop", locationGps: { lat: 29.4241, lng: -98.4936 }, gallonsPumped: 28.1, fuelType: "diesel", pricePerGallon: 3.439, totalAmount: 96.64, odometerAtFill: 67500 },
+  { transactionId: "ft-017", fuelCardNumber: "FC-9984-05", authTimestamp: "2026-06-20T12:30:00Z", assetId: "t5", assetName: "Veloz 05", driverId: "d4", driverName: "Derrick Thompson", vendorName: "TA Travel Center", locationGps: { lat: 30.2672, lng: -97.7431 }, gallonsPumped: 24.6, fuelType: "diesel", pricePerGallon: 3.459, totalAmount: 85.09, odometerAtFill: 67200 },
+
+  // FLAGGED — exceeds tank capacity (truck t2 has ~34 gal tank, flagged fill says 53 gal)
+  {
+    transactionId: "ft-008", fuelCardNumber: "FC-5521-02", authTimestamp: "2026-06-25T11:30:00Z", assetId: "t2", assetName: "Veloz 02", driverId: "d2", driverName: "James Carter", vendorName: "TA Travel Center", locationGps: { lat: 32.7767, lng: -96.7970 }, gallonsPumped: 53.0, fuelType: "diesel", pricePerGallon: 3.399, totalAmount: 180.15, odometerAtFill: 211090,
+    flagged: { type: "capacity_exceeded", severity: "high", detail: "53.0 gal pumped exceeds 34 gal tank capacity. Verify transaction or check for fuel theft.", flaggedAt: "2026-06-25T11:31:00Z" },
+  },
+  // FLAGGED — location mismatch (truck t3 gps at Austin, fuel swiped in Houston)
+  {
+    transactionId: "ft-018", fuelCardNumber: "FC-3398-03", authTimestamp: "2026-06-26T19:22:00Z", assetId: "t3", assetName: "Veloz 03", driverId: "d3", driverName: "Sanjay Patel", vendorName: "Love's Travel Stop", locationGps: { lat: 29.7604, lng: -95.3698 }, gallonsPumped: 18.2, fuelType: "diesel", pricePerGallon: 3.419, totalAmount: 62.23, odometerAtFill: 38100,
+    flagged: { type: "location_mismatch", severity: "high", detail: "Fuel swiped in Houston but truck telemetry shows Austin at time of auth. Possible card cloning.", flaggedAt: "2026-06-26T19:25:00Z" },
+  },
+  // FLAGGED — rapid consumption (truck t4 burned 40 gal in only 95 miles)
+  {
+    transactionId: "ft-019", fuelCardNumber: "FC-7712-04", authTimestamp: "2026-06-21T06:40:00Z", assetId: "t4", assetName: "Veloz 04", driverId: "d4", driverName: "Derrick Thompson", vendorName: "Pilot Flying J", locationGps: { lat: 31.5493, lng: -97.1467 }, gallonsPumped: 35.8, fuelType: "diesel", pricePerGallon: 3.419, totalAmount: 122.40, odometerAtFill: 287040,
+    flagged: { type: "rapid_consumption", severity: "medium", detail: "Only 340 mi since last fill but 38.9 gal consumed — roughly 8.7 MPG. Heavy load on headwind route.", flaggedAt: "2026-06-21T06:42:00Z" },
+  },
+];
+
+/** Aggregate fuel analytics across fleet */
+export function fuelAnalytics(transactions: FuelTransaction[]) {
+  const diesel = transactions.filter((t) => t.fuelType === "diesel" && !t.transactionId.startsWith("ft-0") && t.transactionId !== "ft-008" && t.transactionId !== "ft-018");
+
+  const totalGallons = diesel.reduce((sum, t) => sum + t.gallonsPumped, 0);
+  const totalSpend = diesel.reduce((sum, t) => sum + t.totalAmount, 0);
+  const avgPricePerGallon = totalGallons > 0 ? Math.round((totalSpend / totalGallons) * 1000) / 1000 : 0;
+
+  // Average fleet MPG from rolling calculations
+  const truckMpgs: number[] = [];
+  const truckIds = [...new Set(diesel.map((t) => t.assetId))];
+  truckIds.forEach((tid) => {
+    const rolling = calcRollingMPG(diesel, tid);
+    if (rolling.mpg > 0) truckMpgs.push(rolling.mpg);
+  });
+  const fleetAvgMpg = truckMpgs.length > 0 ? Math.round((truckMpgs.reduce((a, b) => a + b, 0) / truckMpgs.length) * 10) / 10 : 0;
+
+  // This week (last 7 days)
+  const now = Date.now();
+  const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
+  const thisWeek = diesel.filter((t) => new Date(t.authTimestamp).getTime() > weekAgo);
+  const weekGallons = thisWeek.reduce((sum, t) => sum + t.gallonsPumped, 0);
+  const weekSpend = thisWeek.reduce((sum, t) => sum + t.totalAmount, 0);
+
+  const flagged = transactions.filter((t) => t.flagged != null);
+
+  return {
+    totalGallons: Math.round(totalGallons * 10) / 10,
+    totalSpend: Math.round(totalSpend * 100) / 100,
+    avgPricePerGallon,
+    fleetAvgMpg,
+    weekGallons: Math.round(weekGallons * 10) / 10,
+    weekSpend: Math.round(weekSpend * 100) / 100,
+    totalTransactions: diesel.length,
+    flaggedCount: flagged.length,
+    flagged,
+  };
+}

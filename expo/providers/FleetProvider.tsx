@@ -3,8 +3,10 @@ import { useCallback, useMemo, useState } from "react";
 
 import {
   TRUCKS, TRAILERS, INSPECTIONS, FLEET_AI, DRIVERS,
+  FUEL_TRANSACTIONS,
   getInspectionStatus, INSPECTION_EXPIRY_HOURS,
   calcServiceUrgency, checkWarrantyCoverage,
+  calcRollingMPG, checkMPGDegradation, calcFuelCPM, fuelAnalytics, getMPGBaseline,
   type Truck, type Trailer, type Inspection, type Driver,
   type AvailabilityState, type RoadReadyStatus,
   type EquipmentSession, type SessionHistoryEntry,
@@ -12,6 +14,7 @@ import {
   type RepairRecord, type RepairLineItem,
   type ServiceScheduleConfig, type ServiceUrgency, type PMLevel,
   type WarrantyProfile, type MaintenanceLockState,
+  type FuelTransaction, type FuelFraudFlag,
 } from "@/constants/mockData";
 import {
   INCIDENTS,
@@ -28,6 +31,7 @@ export const [FleetProvider, useFleet] = createContextHook(() => {
   const [trailers, setTrailers] = useState<Trailer[]>(TRAILERS);
   const [inspections, setInspections] = useState<Inspection[]>(INSPECTIONS);
   const [incidents, setIncidents] = useState<Incident[]>(INCIDENTS);
+  const [fuelTransactions] = useState<FuelTransaction[]>(FUEL_TRANSACTIONS);
 
   const getTruck = useCallback((id: string) => trucks.find((t) => t.id === id), [trucks]);
   const getTrailer = useCallback((id: string) => trailers.find((t) => t.id === id), [trailers]);
@@ -617,6 +621,65 @@ export const [FleetProvider, useFleet] = createContextHook(() => {
   }, [trucks, trailers]);
 
   // ══════════════════════════════════════════════
+  // Fuel Intelligence Engine
+  // ══════════════════════════════════════════════
+
+  const fuelSummary = useMemo(() => fuelAnalytics(fuelTransactions), [fuelTransactions]);
+
+  const getFuelTransactions = useCallback(
+    (truckId: string): FuelTransaction[] =>
+      fuelTransactions.filter((t) => t.assetId === truckId).sort((a, b) => new Date(b.authTimestamp).getTime() - new Date(a.authTimestamp).getTime()),
+    [fuelTransactions],
+  );
+
+  const getRollingMPG = useCallback(
+    (truckId: string) => calcRollingMPG(fuelTransactions, truckId),
+    [fuelTransactions],
+  );
+
+  const getMPGDegradation = useCallback(
+    (truck: Truck, trailerId: string | undefined) => {
+      const trailer = trailerId ? trailers.find((t) => t.id === trailerId) : undefined;
+      return checkMPGDegradation(truck, trailer, fuelTransactions);
+    },
+    [fuelTransactions, trailers],
+  );
+
+  const getFuelCPM = useCallback(
+    (truckId: string) => calcFuelCPM(fuelTransactions, truckId),
+    [fuelTransactions],
+  );
+
+  const fuelEfficiencyRanking = useMemo(() => {
+    return trucks
+      .map((truck) => {
+        const rolling = calcRollingMPG(fuelTransactions, truck.id);
+        const deg = checkMPGDegradation(truck, trailers.find((tr) => tr.assignedTruckId === truck.id), fuelTransactions);
+        return {
+          truckId: truck.id,
+          truckName: truck.nickname,
+          make: truck.make,
+          model: truck.model,
+          subtype: truck.subtype,
+          status: truck.status,
+          availability: truck.availability,
+          currentMpg: rolling.mpg > 0 ? rolling.mpg : truck.avgMpg,
+          mpgTrend: rolling.trend,
+          fills: rolling.fills,
+          degraded: deg.degraded,
+          degradationAlert: deg.alert,
+          baselineMpg: deg.baselineMpg,
+        };
+      })
+      .sort((a, b) => b.currentMpg - a.currentMpg);
+  }, [trucks, trailers, fuelTransactions]);
+
+  const fuelAnomalies = useMemo(
+    () => fuelTransactions.filter((t) => t.flagged != null),
+    [fuelTransactions],
+  );
+
+  // ══════════════════════════════════════════════
   // Orphan Prevention — collision-checked assignment
   // ══════════════════════════════════════════════
 
@@ -713,5 +776,14 @@ export const [FleetProvider, useFleet] = createContextHook(() => {
     maintenanceHealth,
     upcomingServices,
     costPerMileByClass,
+    // Fuel Intelligence Engine
+    fuelTransactions,
+    fuelSummary,
+    getFuelTransactions,
+    getRollingMPG,
+    getMPGDegradation,
+    getFuelCPM,
+    fuelEfficiencyRanking,
+    fuelAnomalies,
   };
 });
