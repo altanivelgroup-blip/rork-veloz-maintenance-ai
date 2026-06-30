@@ -12,6 +12,7 @@ import HealthGauge from "@/components/HealthGauge";
 import InsightCard from "@/components/InsightCard";
 import InspectionSyncBadge from "@/components/InspectionSyncBadge";
 import MetricBar from "@/components/MetricBar";
+import AssetIncidentHistory from "@/components/AssetIncidentHistory";
 import RoadReadyBadge from "@/components/RoadReadyBadge";
 import Screen from "@/components/Screen";
 import SectionHeader from "@/components/SectionHeader";
@@ -306,6 +307,9 @@ export default function TruckDetail() {
             <Text style={styles.inspectCtaText}>Run inspection on {truck.nickname}</Text>
           </View>
         </Pressable>
+
+        {/* Asset Incident History */}
+        <AssetIncidentHistory assetId={truck.id} assetName={truck.nickname} />
 
         {/* Asset Blueprint Drawer */}
         <AssetBlueprint visible={blueprintOpen} asset={truck} kind="truck" onClose={() => setBlueprintOpen(false)} />

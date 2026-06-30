@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { BarChart3, ClipboardCheck, Cpu, Fuel, Truck, Container, TriangleAlert } from "lucide-react-native";
+import { BarChart3, ClipboardCheck, Cpu, Fuel, Truck, Container, TriangleAlert, Gauge } from "lucide-react-native";
 import React from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { BlurView } from "expo-blur";
@@ -72,6 +72,13 @@ export default function TabLayout() {
         options={{
           title: "Fuel",
           tabBarIcon: ({ color, size }) => <Fuel color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="operations"
+        options={{
+          title: "Operations",
+          tabBarIcon: ({ color, size }) => <Gauge color={color} size={size} />,
         }}
       />
       <Tabs.Screen

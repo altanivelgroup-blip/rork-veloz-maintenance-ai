@@ -1664,6 +1664,230 @@ export const FUEL_TRANSACTIONS: FuelTransaction[] = [
   },
 ];
 
+// ══════════════════════════════════════════════
+// Operations — Active Truck↔Trailer Coupling
+export type CouplingState = "coupled" | "bobtail";
+
+export const couplingMeta: Record<CouplingState, { label: string; icon: string; color: string }> = {
+  coupled: { label: "Coupled", icon: "link", color: "#5EE7FF" },
+  bobtail: { label: "Bobtail — Uncoupled", icon: "unlink", color: "#FFB547" },
+};
+
+export type ActiveCoupling = {
+  couplingId: string;
+  truckId: string;
+  truckName: string;
+  trailerId?: string;
+  trailerName?: string;
+  operatorId?: string;
+  operatorName?: string;
+  state: CouplingState;
+  cargoCount: number;
+  cargoSealId?: string;
+  startLocation?: string;
+  createdAt: string;
+};
+
+// ══════════════════════════════════════════════
+// Operations — Inspection Vault (30-day paired history)
+export type InspectionVaultEntry = {
+  id: string;
+  date: string;
+  truckId: string;
+  truckName: string;
+  trailerId?: string;
+  trailerName?: string;
+  driver: string;
+  truckResult: "pass" | "fail" | "flagged" | "expired";
+  trailerResult?: "pass" | "fail" | "flagged" | "expired";
+  cargoSealVerified: boolean;
+  cargoSealId?: string;
+  photos: number;
+  timeOnTaskSeconds: number;
+  notes?: string;
+};
+
+// ══════════════════════════════════════════════
+// Operations — Operational Incident (enterprise safety ledger)
+export type OperationalIncidentSeverity =
+  | "low_delay"
+  | "mechanical_failure"
+  | "cargo_damage_claim"
+  | "critical_sos";
+
+export const operationalSeverityMeta: Record<OperationalIncidentSeverity, { label: string; color: string; soft: string; priority: number }> = {
+  critical_sos: { label: "CRITICAL SOS", color: "#FF3366", soft: "rgba(255,51,102,0.2)", priority: 0 },
+  cargo_damage_claim: { label: "Cargo Damage Claim", color: "#FFB547", soft: "rgba(255,181,71,0.15)", priority: 1 },
+  mechanical_failure: { label: "Mechanical Failure", color: "#FF5470", soft: "rgba(255,84,112,0.14)", priority: 2 },
+  low_delay: { label: "Low / Delay", color: "#5EE7FF", soft: "rgba(94,231,255,0.12)", priority: 3 },
+};
+
+export type OperationalResolutionStatus = "open" | "in_progress" | "resolved";
+
+export const operationalResolutionMeta: Record<OperationalResolutionStatus, { label: string; color: string }> = {
+  open: { label: "Open", color: "#FF5470" },
+  in_progress: { label: "In Progress", color: "#FFB547" },
+  resolved: { label: "Resolved", color: "#22D399" },
+};
+
+export type OperationalIncident = {
+  incidentId: string;
+  sessionId?: string;
+  operatorId?: string;
+  operatorName?: string;
+  truckId?: string;
+  truckName?: string;
+  trailerId?: string;
+  trailerName?: string;
+  timestamp: string;
+  gpsLocation?: string;
+  severityTier: OperationalIncidentSeverity;
+  resolutionStatus: OperationalResolutionStatus;
+  title: string;
+  description: string;
+  affectedCargoVins: string[];
+  documentRefs: { type: "police_report" | "insurance_claim" | "photo" | "other"; ref: string }[];
+  dispatcherNotes: { by: string; at: string; text: string }[];
+  correctiveAction?: string;
+  resolvedAt?: string;
+  resolvedBy?: string;
+};
+
+// ══════════════════════════════════════════════
+// Operations — Mock Active Couplings
+const ACTIVE_COUPLINGS: ActiveCoupling[] = [
+  {
+    couplingId: "coup-001", truckId: "t1", truckName: "Veloz 01", trailerId: "tr1", trailerName: "Wedge 40",
+    operatorId: "d1", operatorName: "Maria Reyes", state: "coupled", cargoCount: 3,
+    cargoSealId: "SEAL-88421-D", startLocation: "Houston Terminal B", createdAt: "2026-06-30T06:20:00Z",
+  },
+  {
+    couplingId: "coup-002", truckId: "t2", truckName: "Veloz 02", trailerId: "tr2", trailerName: "Gooseneck 36",
+    operatorId: "d2", operatorName: "James Carter", state: "coupled", cargoCount: 2,
+    cargoSealId: "SEAL-88422-E", startLocation: "Dallas Hub A", createdAt: "2026-06-29T14:40:00Z",
+  },
+  {
+    couplingId: "coup-003", truckId: "t3", truckName: "Veloz 03",
+    operatorId: undefined, operatorName: undefined, state: "bobtail", cargoCount: 0,
+    startLocation: "Austin Yard", createdAt: "2026-06-30T09:00:00Z",
+  },
+];
+
+// ══════════════════════════════════════════════
+// Operations — Mock Inspection Vault (30-day history)
+const INSPECTION_VAULT: InspectionVaultEntry[] = [
+  {
+    id: "vault-001", date: "2026-06-30T06:14:00Z", truckId: "t1", truckName: "Veloz 01", trailerId: "tr1", trailerName: "Wedge 40",
+    driver: "Maria Reyes", truckResult: "pass", trailerResult: "pass", cargoSealVerified: true, cargoSealId: "SEAL-88421-D",
+    photos: 4, timeOnTaskSeconds: 312, notes: "Full pre-trip checklist complete. All systems nominal.",
+  },
+  {
+    id: "vault-002", date: "2026-06-29T14:30:00Z", truckId: "t2", truckName: "Veloz 02", trailerId: "tr2", trailerName: "Gooseneck 36",
+    driver: "James Carter", truckResult: "pass", trailerResult: "flagged", cargoSealVerified: true, cargoSealId: "SEAL-88422-E",
+    photos: 3, timeOnTaskSeconds: 285, notes: "Trailer marker light flagged — intermittent. Monitor next trip.",
+  },
+  {
+    id: "vault-003", date: "2026-06-29T08:00:00Z", truckId: "t3", truckName: "Veloz 03",
+    driver: "Sanjay Patel", truckResult: "pass", trailerResult: undefined, cargoSealVerified: false,
+    photos: 2, timeOnTaskSeconds: 198, notes: "Bobtail pre-trip — no trailer to inspect.",
+  },
+  {
+    id: "vault-004", date: "2026-06-28T12:00:00Z", truckId: "t2", truckName: "Veloz 02", trailerId: "tr2", trailerName: "Gooseneck 36",
+    driver: "James Carter", truckResult: "pass", trailerResult: "pass", cargoSealVerified: true, cargoSealId: "SEAL-88420-C",
+    photos: 4, timeOnTaskSeconds: 340, notes: "Pre-trip completed after rest period. All clear.",
+  },
+  {
+    id: "vault-005", date: "2026-06-28T07:45:00Z", truckId: "t4", truckName: "Veloz 04", trailerId: "tr3", trailerName: "Enclosed 28",
+    driver: "Derrick Thompson", truckResult: "fail", trailerResult: "fail", cargoSealVerified: false,
+    photos: 6, timeOnTaskSeconds: 420, notes: "Truck: coolant system alert + brake fluid low. Trailer: brake shoes at 14%, marker light out. Both OOS.",
+  },
+  {
+    id: "vault-006", date: "2026-06-27T09:00:00Z", truckId: "t4", truckName: "Veloz 04", trailerId: "tr3", trailerName: "Enclosed 28",
+    driver: "Derrick Thompson", truckResult: "pass", trailerResult: "fail", cargoSealVerified: false,
+    photos: 3, timeOnTaskSeconds: 356, notes: "Trailer brake wear crossing threshold — flagged for immediate service.",
+  },
+  {
+    id: "vault-007", date: "2026-06-27T06:00:00Z", truckId: "t1", truckName: "Veloz 01", trailerId: "tr4", trailerName: "Skid Hauler",
+    driver: "Maria Reyes", truckResult: "pass", trailerResult: "pass", cargoSealVerified: true, cargoSealId: "SEAL-88418-A",
+    photos: 4, timeOnTaskSeconds: 298, notes: "All checks passed. Winch cable at 88% — acceptable.",
+  },
+];
+
+// ══════════════════════════════════════════════
+// Operations — Mock Operational Incidents
+const OPERATIONAL_INCIDENTS: OperationalIncident[] = [
+  {
+    incidentId: "opi-001", sessionId: "sesh-001", operatorId: "d1", operatorName: "Maria Reyes",
+    truckId: "t1", truckName: "Veloz 01", trailerId: "tr1", trailerName: "Wedge 40",
+    timestamp: "2026-06-30T10:42:00Z", gpsLocation: "I-10 E, MM 742 · Houston, TX",
+    severityTier: "critical_sos", resolutionStatus: "open",
+    title: "Cargo SOS — Vehicle shift on trailer deck",
+    description: "Driver reports load shifted on wedge deck after evasive maneuver. One vehicle partially off track. Requesting roadside assist and re-secure crew. No injuries. Highway patrol en route for traffic control.",
+    affectedCargoVins: ["1G1ZD5ST•••••4401", "5XXGT4L3•••••8922"],
+    documentRefs: [{ type: "police_report", ref: "TXHP-2026-44891" }],
+    dispatcherNotes: [
+      { by: "Dispatch", at: "2026-06-30T10:45:00Z", text: "Roadside assist dispatched — ETA 25 min. Highway patrol unit 18 on scene." },
+      { by: "Safety", at: "2026-06-30T10:50:00Z", text: "Cargo re-secure crew notified. Reviewing deck strap inventory on Wedge 40." },
+    ],
+  },
+  {
+    incidentId: "opi-002", sessionId: "sesh-002", operatorId: "d2", operatorName: "James Carter",
+    truckId: "t2", truckName: "Veloz 02",
+    timestamp: "2026-06-30T08:15:00Z", gpsLocation: "I-35 N, MM 418 · Dallas, TX",
+    severityTier: "mechanical_failure", resolutionStatus: "in_progress",
+    title: "Transmission overheat warning — limped to shoulder",
+    description: "Transmission temp warning at 245°F. Driver pulled over safely. No cargo damage. Suspect transmission cooler line issue from earlier service. Tow dispatched to Veloz Fleet Shop.",
+    affectedCargoVins: [],
+    documentRefs: [],
+    dispatcherNotes: [
+      { by: "Dispatch", at: "2026-06-30T08:20:00Z", text: "Tow dispatched — ETA 40 min. Driver safe. Alternate truck being arranged." },
+      { by: "Maintenance", at: "2026-06-30T08:35:00Z", text: "Work order WO-2026-0630 opened. Suspect transmission cooler line — referencing recent AAMCO service WO AAM-2026-0115." },
+    ],
+  },
+  {
+    incidentId: "opi-003", sessionId: "sesh-098", operatorId: "d1", operatorName: "Maria Reyes",
+    truckId: "t1", truckName: "Veloz 01", trailerId: "tr1", trailerName: "Wedge 40",
+    timestamp: "2026-06-29T15:30:00Z", gpsLocation: "US-281 S · San Antonio, TX",
+    severityTier: "cargo_damage_claim", resolutionStatus: "open",
+    title: "Customer cargo claim — scratch on BMW 330i quarter panel",
+    description: "Customer at delivery noted a light scratch on the rear quarter panel of a 2024 BMW 330i (VIN WBA8E3G5•••••1122). Documented with photos at drop. Insurance claim filed by customer.",
+    affectedCargoVins: ["WBA8E3G5•••••1122"],
+    documentRefs: [{ type: "insurance_claim", ref: "CLM-77145" }, { type: "photo", ref: "damage-bmw-330i-01.jpg" }],
+    dispatcherNotes: [
+      { by: "Dispatch", at: "2026-06-29T15:45:00Z", text: "Photos submitted. Insurance notified. Customer to provide repair estimate." },
+    ],
+  },
+  {
+    incidentId: "opi-004",
+    timestamp: "2026-06-28T13:10:00Z", gpsLocation: "Veloz Yard · Fort Worth, TX",
+    severityTier: "mechanical_failure", resolutionStatus: "resolved",
+    title: "Pre-trip inspection failure — Veloz 04 coolant system",
+    description: "Morning pre-trip flagged coolant temperature spike at 218°F and low brake fluid reservoir. Unit placed Out of Service. Water pump replacement scheduled.",
+    affectedCargoVins: [],
+    documentRefs: [],
+    dispatcherNotes: [
+      { by: "Dispatch", at: "2026-06-28T13:15:00Z", text: "Veloz 04 grounded. Alternate truck Veloz 03 assigned to Derrick Thompson for afternoon route." },
+      { by: "Maintenance", at: "2026-06-28T14:00:00Z", text: "Confirmed water pump failure and caliper leak. Both repairs in progress. ETA 48h." },
+    ],
+    correctiveAction: "Water pump + caliper replacement. Full cooling system flush.",
+    resolvedAt: "2026-06-30T09:00:00Z", resolvedBy: "Carlos Ortiz",
+  },
+  {
+    incidentId: "opi-005",
+    timestamp: "2026-06-27T11:20:00Z", gpsLocation: "I-20 W, MM 312 · Abilene, TX",
+    severityTier: "low_delay", resolutionStatus: "resolved",
+    title: "Traffic delay — 45 min due to construction",
+    description: "I-20 lane closure for bridge work caused 45-minute delay en route to Lubbock. Customer notified of revised ETA. No equipment or cargo issues.",
+    affectedCargoVins: [],
+    documentRefs: [],
+    dispatcherNotes: [
+      { by: "Dispatch", at: "2026-06-27T11:25:00Z", text: "Customer Premier Motors notified of revised 14:30 ETA. No impact to delivery window agreement." },
+    ],
+    correctiveAction: "Alternative routing added for future Lubbock runs during construction window.",
+    resolvedAt: "2026-06-27T14:30:00Z", resolvedBy: "Dispatch",
+  },
+];
+
 /** Aggregate fuel analytics across fleet */
 export function fuelAnalytics(transactions: FuelTransaction[]) {
   const diesel = transactions.filter((t) => t.fuelType === "diesel" && !t.transactionId.startsWith("ft-0") && t.transactionId !== "ft-008" && t.transactionId !== "ft-018");

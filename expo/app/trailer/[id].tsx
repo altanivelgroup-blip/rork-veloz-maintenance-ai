@@ -12,6 +12,7 @@ import HealthGauge from "@/components/HealthGauge";
 import InsightCard from "@/components/InsightCard";
 import InspectionSyncBadge from "@/components/InspectionSyncBadge";
 import MetricBar from "@/components/MetricBar";
+import AssetIncidentHistory from "@/components/AssetIncidentHistory";
 import RoadReadyBadge from "@/components/RoadReadyBadge";
 import Screen from "@/components/Screen";
 import SectionHeader from "@/components/SectionHeader";
@@ -276,6 +277,9 @@ export default function TrailerDetail() {
             <Text style={styles.inspectCtaText}>Run inspection on {trailer.nickname}</Text>
           </View>
         </Pressable>
+
+        {/* Asset Incident History */}
+        <AssetIncidentHistory assetId={trailer.id} assetName={trailer.nickname} />
 
         {/* Asset Blueprint Drawer */}
         <AssetBlueprint visible={blueprintOpen} asset={trailer} kind="trailer" onClose={() => setBlueprintOpen(false)} />
