@@ -1,6 +1,16 @@
 import React from "react";
-import Svg, { Circle, Defs, G, LinearGradient, Path, Rect, Stop } from "react-native-svg";
+import Svg, { Circle, G, Line, Path, Rect, Text as SvgText } from "react-native-svg";
 import type { TrailerSubtype } from "@/constants/mockData";
+
+type EnterpriseTrailerProfile =
+  | "enclosed_trailer"
+  | "gooseneck"
+  | "wedge"
+  | "flatbed"
+  | "dry_van"
+  | "lowboy"
+  | "equipment_trailer"
+  | "stinger";
 
 type Props = {
   subtype: TrailerSubtype;
@@ -8,181 +18,187 @@ type Props = {
   height?: number;
   tint?: string;
   enclosed?: boolean;
+  profile?: EnterpriseTrailerProfile;
 };
 
-/** Polymorphic trailer renderer — 7 subtypes from 1-car enclosed through 9-car stinger-steer. */
-export default function TrailerSilhouette({ subtype, width = 260, height = 120, tint = "#5EE7FF", enclosed: _enc }: Props) {
-  const uid = `tr-${subtype}-${tint.replace("#", "")}`;
+/** Enterprise blueprint renderer for enclosed, gooseneck, wedge, flatbed, dry van, lowboy, equipment, and stinger trailers. */
+export default function TrailerSilhouette({ subtype, width = 260, height = 120, tint = "#5EE7FF", enclosed, profile }: Props) {
+  const visualProfile = profile ?? getProfileForSubtype(subtype, enclosed);
+
   return (
     <Svg width={width} height={height} viewBox="0 0 260 120">
-      <Defs>
-        <LinearGradient id={uid} x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={tint} stopOpacity="0.95" />
-          <Stop offset="0.5" stopColor={tint} stopOpacity="0.5" />
-          <Stop offset="1" stopColor={tint} stopOpacity="0.18" />
-        </LinearGradient>
-      </Defs>
-
-      {subtype === "1car_enclosed" ? <OneCarEnclosed uid={uid} /> : null}
-      {subtype === "2car_open" ? <TwoCarOpen uid={uid} /> : null}
-      {subtype === "2car_enclosed" ? <TwoCarEnclosed uid={uid} /> : null}
-      {subtype === "3car_wedge" ? <Wedge uid={uid} cars={3} /> : null}
-      {subtype === "4car_wedge" ? <Wedge uid={uid} cars={4} /> : null}
-      {subtype === "5car_quickloader" ? <QuickLoader uid={uid} /> : null}
-      {subtype === "9car_stinger" ? <Stinger uid={uid} /> : null}
+      <BlueprintFrame tint={tint} />
+      {visualProfile === "enclosed_trailer" || visualProfile === "dry_van" ? (
+        <EnclosedTrailer tint={tint} dryVan={visualProfile === "dry_van"} />
+      ) : visualProfile === "stinger" ? (
+        <StingerTrailer tint={tint} />
+      ) : visualProfile === "wedge" ? (
+        <WedgeTrailer tint={tint} longDeck={subtype === "4car_wedge" || subtype === "5car_quickloader"} />
+      ) : visualProfile === "lowboy" ? (
+        <LowboyTrailer tint={tint} />
+      ) : visualProfile === "equipment_trailer" ? (
+        <EquipmentTrailer tint={tint} />
+      ) : (
+        <GooseneckFlatbed tint={tint} flatbed={visualProfile === "flatbed"} />
+      )}
     </Svg>
   );
 }
 
-/* ─── 1-Car Enclosed ─── */
-function OneCarEnclosed({ uid }: { uid: string }) {
+function getProfileForSubtype(subtype: TrailerSubtype, enclosed?: boolean): EnterpriseTrailerProfile {
+  if (subtype === "1car_enclosed" || subtype === "2car_enclosed" || enclosed) return "enclosed_trailer";
+  if (subtype === "3car_wedge" || subtype === "4car_wedge" || subtype === "5car_quickloader") return "wedge";
+  if (subtype === "9car_stinger") return "stinger";
+  return "gooseneck";
+}
+
+function BlueprintFrame({ tint }: { tint: string }) {
   return (
-    <>
-      <G fill={`url(#${uid})`}>
-        <Rect x="10" y="62" width="40" height="6" rx="3" opacity="0.5" />
-        <Rect x="6" y="58" width="10" height="14" rx="4" opacity="0.6" />
-        <Rect x="50" y="22" width="140" height="60" rx="6" />
-        <Rect x="90" y="18" width="30" height="6" rx="3" opacity="0.35" />
-        <Rect x="185" y="34" width="5" height="40" rx="2.5" opacity="0.3" />
-        <Rect x="70" y="38" width="20" height="14" rx="2" fill="#fff" opacity="0.12" />
-        <Path d="M78 82 Q86 72 100 82 Q112 92 118 82 L76 82 Z" opacity="0.5" />
-      </G>
-      <Circle cx="80" cy="96" r="11" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="110" cy="96" r="11" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-    </>
+    <G opacity="0.96">
+      <Rect x="8" y="15" width="244" height="82" rx="10" fill="rgba(255,255,255,0.012)" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
+      <Line x1="18" y1="84" x2="242" y2="84" stroke={tint} strokeOpacity="0.25" strokeWidth="1" strokeDasharray="5 6" />
+      <Line x1="22" y1="30" x2="238" y2="30" stroke="rgba(255,255,255,0.055)" strokeWidth="1" />
+      <Line x1="22" y1="54" x2="238" y2="54" stroke="rgba(255,255,255,0.045)" strokeWidth="1" />
+      <Line x1="22" y1="78" x2="238" y2="78" stroke="rgba(255,255,255,0.045)" strokeWidth="1" />
+    </G>
   );
 }
 
-/* ─── 2-Car Open Deck ─── */
-function TwoCarOpen({ uid }: { uid: string }) {
+function OutlineRect({ x, y, width, height, tint, rx = 3, opacity = 0.92 }: { x: number; y: number; width: number; height: number; tint: string; rx?: number; opacity?: number }) {
+  return <Rect x={x} y={y} width={width} height={height} rx={rx} fill="rgba(255,255,255,0.018)" stroke={tint} strokeOpacity={opacity} strokeWidth="2" />;
+}
+
+function Wheel({ cx, cy, tint, r = 10 }: { cx: number; cy: number; tint: string; r?: number }) {
   return (
-    <>
-      <G fill={`url(#${uid})`}>
-        <Rect x="10" y="66" width="44" height="6" rx="3" opacity="0.5" />
-        <Rect x="6" y="62" width="10" height="14" rx="4" opacity="0.6" />
-        <Rect x="54" y="54" width="150" height="10" rx="3" />
-        <Rect x="52" y="42" width="42" height="14" rx="3" />
-        <Path d="M196 54 L196 84 L182 64 Z" opacity="0.7" />
-        <Path d="M204 54 L204 84 L218 64 Z" opacity="0.7" />
-        <Rect x="74" y="36" width="3" height="18" rx="1" opacity="0.5" />
-        <Rect x="110" y="36" width="3" height="18" rx="1" opacity="0.5" />
-        <Rect x="146" y="36" width="3" height="18" rx="1" opacity="0.5" />
-        <Rect x="182" y="36" width="3" height="18" rx="1" opacity="0.5" />
-        <Rect x="72" y="34" width="116" height="4" rx="2" opacity="0.45" />
-        <Path d="M78 64 Q86 56 100 64 Q112 74 118 64 L76 64 Z" opacity="0.45" />
-        <Path d="M150 64 Q158 56 172 64 Q184 74 190 64 L148 64 Z" opacity="0.45" />
-      </G>
-      <Circle cx="80" cy="92" r="12" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="110" cy="92" r="12" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="152" cy="92" r="12" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="182" cy="92" r="12" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-    </>
+    <G>
+      <Circle cx={cx} cy={cy} r={r} fill="#07111F" stroke={tint} strokeOpacity="0.72" strokeWidth="1.6" />
+      <Circle cx={cx} cy={cy} r={r - 4} fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="1" />
+      <Circle cx={cx} cy={cy} r="2" fill={tint} opacity="0.75" />
+    </G>
   );
 }
 
-/* ─── 2-Car Enclosed ─── */
-function TwoCarEnclosed({ uid }: { uid: string }) {
+function Hitch({ tint, y = 65 }: { tint: string; y?: number }) {
   return (
-    <>
-      <G fill={`url(#${uid})`}>
-        <Rect x="10" y="58" width="44" height="6" rx="3" opacity="0.5" />
-        <Rect x="6" y="54" width="10" height="14" rx="4" opacity="0.6" />
-        <Rect x="54" y="18" width="170" height="62" rx="6" />
-        <Rect x="80" y="14" width="50" height="5" rx="2.5" opacity="0.3" />
-        <Rect x="140" y="14" width="50" height="5" rx="2.5" opacity="0.3" />
-        <Rect x="64" y="44" width="150" height="3" rx="1.5" opacity="0.2" />
-        <Rect x="64" y="52" width="150" height="3" rx="1.5" opacity="0.2" />
-        <Rect x="219" y="32" width="5" height="40" rx="2.5" opacity="0.3" />
-        <Rect x="72" y="28" width="18" height="12" rx="2" fill="#fff" opacity="0.12" />
-        <Rect x="160" y="28" width="18" height="12" rx="2" fill="#fff" opacity="0.12" />
-        <Path d="M82 80 Q92 68 110 80 Q124 92 134 80 L78 80 Z" opacity="0.45" />
-        <Path d="M160 80 Q170 68 188 80 Q202 92 212 80 L156 80 Z" opacity="0.45" />
-      </G>
-      <Circle cx="86" cy="96" r="12" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="118" cy="96" r="12" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="164" cy="96" r="12" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="196" cy="96" r="12" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-    </>
+    <G>
+      <Line x1="16" y1={y} x2="56" y2={y} stroke={tint} strokeOpacity="0.72" strokeWidth="2" strokeLinecap="round" />
+      <Path d={`M16 ${y - 5} L8 ${y} L16 ${y + 5}`} fill="none" stroke={tint} strokeOpacity="0.65" strokeWidth="1.8" strokeLinejoin="round" />
+    </G>
   );
 }
 
-/* ─── 3/4-Car Wedge ─── */
-function Wedge({ uid, cars }: { uid: string; cars: 3 | 4 }) {
-  const deckLen = cars === 3 ? 180 : 210;
-  const midPost = cars === 3 ? "140" : "160";
+function LabelRail({ label, tint }: { label: string; tint: string }) {
   return (
-    <>
-      <G fill={`url(#${uid})`}>
-        <Rect x="8" y="64" width="48" height="6" rx="3" opacity="0.5" />
-        <Rect x="4" y="60" width="10" height="14" rx="4" opacity="0.6" />
-        <Path d={`M56 56 L${56 + deckLen} 56 L${56 + deckLen - 20} 78 L56 56 Z`} opacity="0.7" />
-        <Rect x="56" y="20" width={deckLen - 20} height="16" rx="4" />
-        <Rect x="56" y="8" width={deckLen - 40} height="14" rx="4" opacity="0.7" />
-        <Rect x="100" y="22" width="3" height="24" rx="1" opacity="0.45" />
-        <Rect x={midPost} y="22" width="3" height="24" rx="1" opacity="0.45" />
-        <Rect x="56" y="18" width={deckLen - 20} height="3" rx="1.5" opacity="0.4" />
-      </G>
-      <Circle cx="72" cy="90" r="11" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="104" cy="90" r="11" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="138" cy="90" r="11" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="172" cy="90" r="11" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="204" cy="90" r="11" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-    </>
+    <G>
+      <Rect x="18" y="19" width="118" height="13" rx="2" fill="rgba(255,255,255,0.03)" stroke={tint} strokeOpacity="0.18" />
+      <SvgText x="24" y="28.5" fill={tint} opacity="0.74" fontSize="7" fontWeight="700" letterSpacing="1.1">
+        {label}
+      </SvgText>
+      <Line x1="144" y1="26" x2="232" y2="26" stroke={tint} strokeOpacity="0.22" strokeWidth="1" />
+    </G>
   );
 }
 
-/* ─── 5-Car Quick-Loader ─── */
-function QuickLoader({ uid }: { uid: string }) {
-  const len = 210;
+function EnclosedTrailer({ tint, dryVan }: { tint: string; dryVan: boolean }) {
   return (
-    <>
-      <G fill={`url(#${uid})`}>
-        <Rect x="8" y="68" width="48" height="6" rx="3" opacity="0.5" />
-        <Rect x="4" y="64" width="10" height="14" rx="4" opacity="0.6" />
-        <Rect x="56" y="48" width={len - 20} height="10" rx="3" />
-        <Rect x="56" y="32" width={len - 30} height="10" rx="3" opacity="0.75" />
-        <Rect x="56" y="16" width={len - 40} height="10" rx="3" opacity="0.55" />
-        <Rect x="80" y="22" width="4" height="26" rx="2" opacity="0.4" />
-        <Rect x="140" y="22" width="4" height="26" rx="2" opacity="0.4" />
-        <Rect x="190" y="22" width="4" height="26" rx="2" opacity="0.4" />
-        <Path d={`M${56 + len - 24} 48 L${56 + len - 12} 74 L${56 + len - 36} 58 Z`} opacity="0.65" />
-      </G>
-      <Circle cx="70" cy="92" r="11" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="102" cy="92" r="11" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="136" cy="92" r="11" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="170" cy="92" r="11" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="204" cy="92" r="11" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-    </>
+    <G>
+      <Hitch tint={tint} y={68} />
+      <OutlineRect x={54} y={37} width={dryVan ? 180 : 158} height={40} tint={tint} rx={4} />
+      <Line x1="70" y1="43" x2={dryVan ? "220" : "198"} y2="43" stroke={tint} strokeOpacity="0.22" />
+      <Line x1="70" y1="63" x2={dryVan ? "220" : "198"} y2="63" stroke={tint} strokeOpacity="0.18" />
+      <Line x1={dryVan ? "224" : "202"} y1="40" x2={dryVan ? "224" : "202"} y2="75" stroke={tint} strokeOpacity="0.35" />
+      <Wheel cx={94} cy={84} tint={tint} />
+      <Wheel cx={122} cy={84} tint={tint} />
+      <Wheel cx={dryVan ? 190 : 166} cy={84} tint={tint} />
+      <Wheel cx={dryVan ? 218 : 194} cy={84} tint={tint} />
+      <LabelRail label={dryVan ? "DRY VAN / BOX" : "ENCLOSED TRAILER"} tint={tint} />
+    </G>
   );
 }
 
-/* ─── 9-Car Stinger-Steer ─── */
-function Stinger({ uid }: { uid: string }) {
+function GooseneckFlatbed({ tint, flatbed }: { tint: string; flatbed: boolean }) {
   return (
-    <>
-      <G fill={`url(#${uid})`}>
-        <Rect x="6" y="64" width="30" height="8" rx="4" opacity="0.55" />
-        <Rect x="2" y="60" width="8" height="16" rx="4" opacity="0.6" />
-        <Rect x="36" y="14" width="90" height="14" rx="4" opacity="0.65" />
-        <Rect x="36" y="44" width="90" height="10" rx="3" />
-        <Circle cx="126" cy="50" r="6" opacity="0.5" />
-        <Rect x="132" y="14" width="98" height="14" rx="4" opacity="0.65" />
-        <Rect x="132" y="44" width="98" height="10" rx="3" />
-        <Rect x="60" y="28" width="3" height="16" rx="1" opacity="0.4" />
-        <Rect x="96" y="28" width="3" height="16" rx="1" opacity="0.4" />
-        <Rect x="160" y="28" width="3" height="16" rx="1" opacity="0.4" />
-        <Rect x="200" y="28" width="3" height="16" rx="1" opacity="0.4" />
-        <Rect x="36" y="12" width="90" height="2" rx="1" opacity="0.35" />
-        <Rect x="132" y="12" width="98" height="2" rx="1" opacity="0.35" />
-        <Rect x="36" y="42" width="90" height="2" rx="1" opacity="0.3" />
-        <Rect x="132" y="42" width="98" height="2" rx="1" opacity="0.3" />
-        <Path d="M228 44 L228 68 L238 54 Z" opacity="0.55" />
-      </G>
-      <Circle cx="60" cy="90" r="11" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="92" cy="90" r="11" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="142" cy="90" r="11" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="176" cy="90" r="11" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="210" cy="90" r="11" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-    </>
+    <G>
+      <Hitch tint={tint} y={66} />
+      <Path d="M50 66 L68 48 L112 48 L112 58 L232 58 L240 70 L56 70 Z" fill="rgba(255,255,255,0.018)" stroke={tint} strokeOpacity="0.9" strokeWidth="2" strokeLinejoin="round" />
+      <Line x1="76" y1="49" x2="76" y2="70" stroke={tint} strokeOpacity="0.22" />
+      <Line x1="132" y1="58" x2="132" y2="70" stroke={tint} strokeOpacity="0.18" />
+      <Line x1="176" y1="58" x2="176" y2="70" stroke={tint} strokeOpacity="0.18" />
+      {flatbed && <Rect x="118" y="49" width="96" height="7" rx="1.5" fill="none" stroke={tint} strokeOpacity="0.4" />}
+      <Wheel cx={90} cy={84} tint={tint} />
+      <Wheel cx={120} cy={84} tint={tint} />
+      <Wheel cx={178} cy={84} tint={tint} />
+      <Wheel cx={208} cy={84} tint={tint} />
+      <LabelRail label={flatbed ? "FLATBED" : "GOOSENECK TRAILER"} tint={tint} />
+    </G>
+  );
+}
+
+function WedgeTrailer({ tint, longDeck }: { tint: string; longDeck: boolean }) {
+  return (
+    <G>
+      <Hitch tint={tint} y={70} />
+      <Path d={longDeck ? "M54 68 L236 42 L244 56 L74 78 Z" : "M54 68 L218 45 L232 58 L74 78 Z"} fill="rgba(255,255,255,0.018)" stroke={tint} strokeOpacity="0.92" strokeWidth="2" strokeLinejoin="round" />
+      <Line x1="72" y1="65" x2={longDeck ? "224" : "206"} y2="44" stroke={tint} strokeOpacity="0.28" />
+      <Line x1="100" y1="62" x2="100" y2="75" stroke={tint} strokeOpacity="0.2" />
+      <Line x1="142" y1="56" x2="142" y2="70" stroke={tint} strokeOpacity="0.2" />
+      <Line x1="184" y1="50" x2="184" y2="64" stroke={tint} strokeOpacity="0.2" />
+      <Wheel cx={82} cy={84} tint={tint} />
+      <Wheel cx={112} cy={84} tint={tint} />
+      <Wheel cx={148} cy={84} tint={tint} />
+      <Wheel cx={184} cy={84} tint={tint} />
+      {longDeck && <Wheel cx={218} cy={84} tint={tint} />}
+      <LabelRail label={longDeck ? "EXTENDED WEDGE" : "WEDGE TRAILER"} tint={tint} />
+    </G>
+  );
+}
+
+function StingerTrailer({ tint }: { tint: string }) {
+  return (
+    <G>
+      <Hitch tint={tint} y={70} />
+      <Path d="M38 68 L116 40 L122 52 L54 77 Z" fill="rgba(255,255,255,0.018)" stroke={tint} strokeOpacity="0.78" strokeWidth="1.8" />
+      <Circle cx="124" cy="58" r="6" fill="none" stroke={tint} strokeOpacity="0.58" strokeWidth="1.6" />
+      <Path d="M130 52 L232 38 L244 52 L148 72 Z" fill="rgba(255,255,255,0.018)" stroke={tint} strokeOpacity="0.9" strokeWidth="2" />
+      <Line x1="60" y1="61" x2="110" y2="43" stroke={tint} strokeOpacity="0.25" />
+      <Line x1="152" y1="49" x2="226" y2="39" stroke={tint} strokeOpacity="0.25" />
+      <Wheel cx={68} cy={84} tint={tint} />
+      <Wheel cx={98} cy={84} tint={tint} />
+      <Wheel cx={154} cy={84} tint={tint} />
+      <Wheel cx={190} cy={84} tint={tint} />
+      <Wheel cx={224} cy={84} tint={tint} />
+      <LabelRail label="STINGER-STEER" tint={tint} />
+    </G>
+  );
+}
+
+function LowboyTrailer({ tint }: { tint: string }) {
+  return (
+    <G>
+      <Hitch tint={tint} y={62} />
+      <Path d="M50 62 L84 50 L104 50 L112 68 L190 68 L202 50 L232 50 L242 66 L56 78 Z" fill="rgba(255,255,255,0.018)" stroke={tint} strokeOpacity="0.9" strokeWidth="2" strokeLinejoin="round" />
+      <Line x1="116" y1="68" x2="188" y2="68" stroke={tint} strokeOpacity="0.35" strokeWidth="3" />
+      <Wheel cx={82} cy={84} tint={tint} />
+      <Wheel cx={212} cy={84} tint={tint} />
+      <Wheel cx={234} cy={84} tint={tint} />
+      <LabelRail label="LOWBOY" tint={tint} />
+    </G>
+  );
+}
+
+function EquipmentTrailer({ tint }: { tint: string }) {
+  return (
+    <G>
+      <Hitch tint={tint} y={66} />
+      <Path d="M54 64 L222 64 L238 76 L60 76 Z" fill="rgba(255,255,255,0.018)" stroke={tint} strokeOpacity="0.9" strokeWidth="2" strokeLinejoin="round" />
+      <Rect x="92" y="50" width="86" height="12" rx="2" fill="none" stroke={tint} strokeOpacity="0.4" strokeDasharray="5 4" />
+      <Line x1="78" y1="64" x2="78" y2="76" stroke={tint} strokeOpacity="0.2" />
+      <Line x1="188" y1="64" x2="188" y2="76" stroke={tint} strokeOpacity="0.2" />
+      <Wheel cx={94} cy={84} tint={tint} />
+      <Wheel cx={124} cy={84} tint={tint} />
+      <Wheel cx={182} cy={84} tint={tint} />
+      <Wheel cx={212} cy={84} tint={tint} />
+      <LabelRail label="EQUIPMENT TRAILER" tint={tint} />
+    </G>
   );
 }

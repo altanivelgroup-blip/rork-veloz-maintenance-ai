@@ -1,140 +1,158 @@
 import React from "react";
-import Svg, { Circle, Defs, G, LinearGradient, Path, Rect, Stop } from "react-native-svg";
+import Svg, { Circle, G, Line, Path, Rect, Text as SvgText } from "react-native-svg";
 import type { TruckSubtype } from "@/constants/mockData";
+
+type EnterpriseTruckProfile =
+  | "hotshot_pickup"
+  | "dually"
+  | "cab_chassis"
+  | "semi_tractor"
+  | "straight_truck"
+  | "cargo_van";
 
 type Props = {
   subtype: TruckSubtype;
   width?: number;
   height?: number;
   tint?: string;
+  profile?: EnterpriseTruckProfile;
 };
 
-/** Polymorphic truck renderer — Day Cab, Sleeper Berth, or Heavy Duty Rig. */
-export default function TruckSilhouette({ subtype, width = 260, height = 130, tint = "#7CC4FF" }: Props) {
-  const uid = `t-${subtype}-${tint.replace("#", "")}`;
+/** Enterprise blueprint renderer for trucks, vans, tractors, and vocational fleet assets. */
+export default function TruckSilhouette({ subtype, width = 260, height = 130, tint = "#7CC4FF", profile }: Props) {
+  const visualProfile = profile ?? getProfileForSubtype(subtype);
+
   return (
     <Svg width={width} height={height} viewBox="0 0 260 130">
-      <Defs>
-        <LinearGradient id={uid} x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={tint} stopOpacity="0.95" />
-          <Stop offset="0.5" stopColor={tint} stopOpacity="0.5" />
-          <Stop offset="1" stopColor={tint} stopOpacity="0.2" />
-        </LinearGradient>
-        <LinearGradient id={`${uid}-glass`} x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor="#fff" stopOpacity="0.2" />
-          <Stop offset="1" stopColor="#fff" stopOpacity="0.05" />
-        </LinearGradient>
-      </Defs>
-
-      {subtype === "daycab" ? <DayCab uid={uid} tint={tint} /> : subtype === "sleeper" ? <Sleeper uid={uid} tint={tint} /> : <HeavyDuty uid={uid} tint={tint} />}
+      <BlueprintFrame tint={tint} />
+      {visualProfile === "hotshot_pickup" || visualProfile === "dually" || visualProfile === "cab_chassis" ? (
+        <HotshotTruck tint={tint} profile={visualProfile} />
+      ) : visualProfile === "cargo_van" ? (
+        <CargoVan tint={tint} />
+      ) : visualProfile === "straight_truck" ? (
+        <StraightTruck tint={tint} />
+      ) : (
+        <SemiTractor tint={tint} heavy={subtype === "heavy_duty"} />
+      )}
     </Svg>
   );
 }
 
-/* ─── Day Cab Tractor ─── */
-function DayCab({ uid, tint }: { uid: string; tint: string }) {
+function getProfileForSubtype(subtype: TruckSubtype): EnterpriseTruckProfile {
+  if (subtype === "heavy_duty") return "semi_tractor";
+  if (subtype === "sleeper") return "straight_truck";
+  return "dually";
+}
+
+function BlueprintFrame({ tint }: { tint: string }) {
   return (
-    <>
-      <G fill={`url(#${uid})`}>
-        <Rect x="10" y="58" width="130" height="12" rx="3" />
-        <Rect x="10" y="70" width="130" height="28" rx="5" />
-        <Rect x="50" y="50" width="30" height="8" rx="4" opacity="0.7" />
-        <Path d="M140 38 L168 38 L198 54 L198 98 L140 98 Z" />
-        <Rect x="150" y="34" width="38" height="4" rx="2" opacity="0.85" />
-        <Path d="M146 46 L170 46 L188 56 L146 56 Z" fill={`url(#${uid}-glass)`} />
-        <Path d="M146 60 L170 60 L188 68 L146 68 Z" fill={`url(#${uid}-glass)`} opacity="0.6" />
-        <Rect x="196" y="56" width="18" height="20" rx="3" />
-        <Rect x="210" y="60" width="14" height="16" rx="2" opacity="0.7" />
-        <Rect x="218" y="44" width="5" height="32" rx="2.5" fill={tint} opacity="0.85" />
-        <Rect x="196" y="90" width="30" height="6" rx="3" opacity="0.65" />
-        <Path d="M58 70 Q64 63 78 70 Q90 82 96 98 L42 98 Q48 82 58 70 Z" opacity="0.75" />
-      </G>
-      {/* Wheels — steer + tandem dually */}
-      <Circle cx="184" cy="106" r="12" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="42" cy="106" r="12" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="68" cy="106" r="12" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="94" cy="106" r="12" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="120" cy="106" r="12" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="184" cy="106" r="3" fill="rgba(255,255,255,0.3)" />
-      <Circle cx="42" cy="106" r="3" fill="rgba(255,255,255,0.3)" />
-      <Circle cx="68" cy="106" r="3" fill="rgba(255,255,255,0.3)" />
-      <Circle cx="94" cy="106" r="3" fill="rgba(255,255,255,0.3)" />
-      <Circle cx="120" cy="106" r="3" fill="rgba(255,255,255,0.3)" />
-    </>
+    <G opacity="0.95">
+      <Rect x="8" y="18" width="244" height="92" rx="10" fill="rgba(255,255,255,0.015)" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
+      <Line x1="18" y1="96" x2="242" y2="96" stroke={tint} strokeOpacity="0.25" strokeWidth="1" strokeDasharray="5 6" />
+      <Line x1="22" y1="34" x2="238" y2="34" stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
+      <Line x1="22" y1="58" x2="238" y2="58" stroke="rgba(255,255,255,0.045)" strokeWidth="1" />
+      <Line x1="22" y1="82" x2="238" y2="82" stroke="rgba(255,255,255,0.045)" strokeWidth="1" />
+    </G>
   );
 }
 
-/* ─── Sleeper Berth ─── */
-function Sleeper({ uid, tint }: { uid: string; tint: string }) {
+function BodyPath({ d, tint, opacity = 1 }: { d: string; tint: string; opacity?: number }) {
+  return <Path d={d} fill="rgba(255,255,255,0.025)" stroke={tint} strokeOpacity={opacity} strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />;
+}
+
+function BlueprintLine({ x1, y1, x2, y2, tint }: { x1: number; y1: number; x2: number; y2: number; tint: string }) {
+  return <Line x1={x1} y1={y1} x2={x2} y2={y2} stroke={tint} strokeOpacity="0.32" strokeWidth="1.2" strokeLinecap="round" />;
+}
+
+function Wheel({ cx, cy, tint, r = 12 }: { cx: number; cy: number; tint: string; r?: number }) {
   return (
-    <>
-      <G fill={`url(#${uid})`}>
-        <Rect x="8" y="72" width="100" height="8" rx="2" opacity="0.5" />
-        <Rect x="14" y="60" width="36" height="18" rx="6" opacity="0.65" />
-        <Rect x="56" y="60" width="36" height="18" rx="6" opacity="0.55" />
-        <Rect x="102" y="42" width="44" height="42" rx="6" />
-        <Path d="M108 42 L118 24 L134 24 L142 42 Z" opacity="0.8" />
-        <Path d="M146 38 L166 38 L192 52 L192 84 L146 84 Z" />
-        <Rect x="150" y="34" width="32" height="4" rx="2" opacity="0.85" />
-        <Path d="M154 46 L172 46 L184 54 L154 54 Z" fill={`url(#${uid}-glass)`} />
-        <Path d="M154 58 L172 58 L184 64 L154 64 Z" fill={`url(#${uid}-glass)`} opacity="0.6" />
-        <Rect x="116" y="48" width="20" height="18" rx="4" fill={`url(#${uid}-glass)`} opacity="0.5" />
-        <Rect x="192" y="54" width="20" height="22" rx="3" />
-        <Rect x="206" y="58" width="16" height="18" rx="2" opacity="0.7" />
-        <Rect x="218" y="42" width="5" height="34" rx="2.5" fill={tint} opacity="0.85" />
-        <Rect x="136" y="16" width="4" height="22" rx="2" opacity="0.45" />
-        <Rect x="150" y="28" width="38" height="6" rx="3" opacity="0.4" />
-      </G>
-      {/* Wheels — steer + tandem drive */}
-      <Circle cx="186" cy="102" r="13" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="36" cy="102" r="13" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="62" cy="102" r="13" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="88" cy="102" r="13" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="114" cy="102" r="13" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="186" cy="102" r="3.5" fill="rgba(255,255,255,0.3)" />
-      <Circle cx="36" cy="102" r="3.5" fill="rgba(255,255,255,0.3)" />
-      <Circle cx="62" cy="102" r="3.5" fill="rgba(255,255,255,0.3)" />
-      <Circle cx="88" cy="102" r="3.5" fill="rgba(255,255,255,0.3)" />
-      <Circle cx="114" cy="102" r="3.5" fill="rgba(255,255,255,0.3)" />
-    </>
+    <G>
+      <Circle cx={cx} cy={cy} r={r} fill="#07111F" stroke={tint} strokeOpacity="0.75" strokeWidth="1.8" />
+      <Circle cx={cx} cy={cy} r={r - 5} fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth="1" />
+      <Circle cx={cx} cy={cy} r="2.2" fill={tint} opacity="0.8" />
+    </G>
   );
 }
 
-/* ─── Heavy Duty Rig ─── */
-function HeavyDuty({ uid, tint }: { uid: string; tint: string }) {
+function HotshotTruck({ tint, profile }: { tint: string; profile: EnterpriseTruckProfile }) {
+  const isChassis = profile === "cab_chassis";
   return (
-    <>
-      <G fill={`url(#${uid})`}>
-        <Rect x="6" y="80" width="80" height="10" rx="2" opacity="0.4" />
-        <Rect x="10" y="64" width="38" height="22" rx="8" opacity="0.65" />
-        <Rect x="54" y="64" width="32" height="20" rx="8" opacity="0.55" />
-        <Rect x="98" y="40" width="50" height="50" rx="8" />
-        <Rect x="110" y="46" width="24" height="20" rx="5" fill={`url(#${uid}-glass)`} opacity="0.45" />
-        <Path d="M104 40 L114 14 L134 14 L146 40 Z" opacity="0.8" />
-        <Path d="M148 36 L166 36 L194 50 L194 90 L148 90 Z" />
-        <Rect x="152" y="30" width="32" height="6" rx="3" opacity="0.85" />
-        <Path d="M156 44 L172 44 L186 52 L156 52 Z" fill={`url(#${uid}-glass)`} />
-        <Path d="M156 56 L172 56 L186 62 L156 62 Z" fill={`url(#${uid}-glass)`} opacity="0.5" />
-        <Rect x="194" y="50" width="26" height="28" rx="4" />
-        <Rect x="214" y="54" width="22" height="24" rx="3" opacity="0.7" />
-        <Rect x="230" y="36" width="6" height="42" rx="3" fill={tint} opacity="0.9" />
-        <Rect x="194" y="84" width="44" height="8" rx="4" opacity="0.6" />
-        <Rect x="170" y="24" width="10" height="18" rx="5" opacity="0.6" />
-        <Rect x="184" y="24" width="10" height="18" rx="5" opacity="0.5" />
-        <Rect x="138" y="12" width="5" height="28" rx="2.5" opacity="0.45" />
-        <Rect x="152" y="24" width="44" height="8" rx="4" opacity="0.4" />
-      </G>
-      {/* Wheels — steer + dual drive axles */}
-      <Circle cx="204" cy="108" r="14" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="30" cy="108" r="14" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="56" cy="108" r="14" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="82" cy="108" r="14" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="108" cy="108" r="14" fill="#0A1628" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <Circle cx="204" cy="108" r="4" fill="rgba(255,255,255,0.3)" />
-      <Circle cx="30" cy="108" r="4" fill="rgba(255,255,255,0.3)" />
-      <Circle cx="56" cy="108" r="4" fill="rgba(255,255,255,0.3)" />
-      <Circle cx="82" cy="108" r="4" fill="rgba(255,255,255,0.3)" />
-      <Circle cx="108" cy="108" r="4" fill="rgba(255,255,255,0.3)" />
-    </>
+    <G>
+      <BodyPath tint={tint} d="M30 70 L48 52 L116 52 L132 70 L224 70 L234 86 L36 86 Z" />
+      <Path d="M56 54 L78 54 L74 70 L42 70 Z M84 54 L108 54 L124 70 L82 70 Z" fill="rgba(124,196,255,0.08)" stroke={tint} strokeOpacity="0.45" strokeWidth="1" />
+      <Rect x="132" y="61" width={isChassis ? 74 : 84} height="14" rx="2" fill="none" stroke={tint} strokeOpacity="0.55" strokeWidth="1.4" />
+      {!isChassis && <Line x1="146" y1="61" x2="146" y2="75" stroke={tint} strokeOpacity="0.3" />}
+      <BlueprintLine x1={38} y1={90} x2={226} y2={90} tint={tint} />
+      <Wheel cx={66} cy={92} tint={tint} />
+      <Wheel cx={178} cy={92} tint={tint} />
+      {profile === "dually" && <Wheel cx={202} cy={92} tint={tint} />}
+      <TextRail label={profile === "cab_chassis" ? "CAB CHASSIS" : profile === "dually" ? "DUALLY / HOTSHOT" : "HOTSHOT PICKUP"} tint={tint} />
+    </G>
+  );
+}
+
+function SemiTractor({ tint, heavy }: { tint: string; heavy: boolean }) {
+  return (
+    <G>
+      <BodyPath tint={tint} d={heavy ? "M28 74 L104 74 L112 40 L150 40 L174 58 L212 58 L226 76 L226 88 L30 88 Z" : "M34 74 L112 74 L120 42 L154 42 L178 58 L210 58 L224 76 L224 88 L36 88 Z"} />
+      <Path d="M126 47 L150 47 L168 59 L122 59 Z" fill="rgba(124,196,255,0.08)" stroke={tint} strokeOpacity="0.45" strokeWidth="1" />
+      <Rect x="52" y="64" width="48" height="8" rx="2" fill="none" stroke={tint} strokeOpacity="0.38" strokeWidth="1.2" />
+      <Circle cx="112" cy="69" r="5" fill="none" stroke={tint} strokeOpacity="0.55" strokeWidth="1.4" />
+      <Line x1="182" y1="58" x2="182" y2="88" stroke={tint} strokeOpacity="0.35" />
+      <BlueprintLine x1={36} y1={92} x2={226} y2={92} tint={tint} />
+      <Wheel cx={196} cy={94} tint={tint} />
+      <Wheel cx={58} cy={94} tint={tint} />
+      <Wheel cx={84} cy={94} tint={tint} />
+      {heavy && <Wheel cx={110} cy={94} tint={tint} />}
+      <TextRail label={heavy ? "HEAVY DUTY TRACTOR" : "SEMI TRACTOR"} tint={tint} />
+    </G>
+  );
+}
+
+function StraightTruck({ tint }: { tint: string }) {
+  return (
+    <G>
+      <Rect x="34" y="48" width="124" height="36" rx="3" fill="rgba(255,255,255,0.025)" stroke={tint} strokeOpacity="0.9" strokeWidth="2" />
+      <BodyPath tint={tint} d="M158 50 L188 50 L214 66 L224 84 L158 84 Z" />
+      <Path d="M164 56 L184 56 L204 67 L164 67 Z" fill="rgba(124,196,255,0.08)" stroke={tint} strokeOpacity="0.42" strokeWidth="1" />
+      <Line x1="58" y1="48" x2="58" y2="84" stroke={tint} strokeOpacity="0.22" />
+      <Line x1="94" y1="48" x2="94" y2="84" stroke={tint} strokeOpacity="0.18" />
+      <Line x1="130" y1="48" x2="130" y2="84" stroke={tint} strokeOpacity="0.18" />
+      <BlueprintLine x1={38} y1={91} x2={222} y2={91} tint={tint} />
+      <Wheel cx={72} cy={94} tint={tint} />
+      <Wheel cx={142} cy={94} tint={tint} />
+      <Wheel cx={198} cy={94} tint={tint} />
+      <TextRail label="STRAIGHT TRUCK" tint={tint} />
+    </G>
+  );
+}
+
+function CargoVan({ tint }: { tint: string }) {
+  return (
+    <G>
+      <BodyPath tint={tint} d="M34 78 L44 54 L152 48 L202 54 L226 76 L220 88 L40 88 Z" />
+      <Path d="M58 56 L104 54 L100 70 L48 70 Z M112 54 L154 53 L172 70 L108 70 Z" fill="rgba(124,196,255,0.08)" stroke={tint} strokeOpacity="0.42" strokeWidth="1" />
+      <Line x1="112" y1="54" x2="112" y2="88" stroke={tint} strokeOpacity="0.22" />
+      <Line x1="164" y1="62" x2="164" y2="88" stroke={tint} strokeOpacity="0.2" />
+      <BlueprintLine x1={42} y1={92} x2={218} y2={92} tint={tint} />
+      <Wheel cx={72} cy={94} tint={tint} />
+      <Wheel cx={194} cy={94} tint={tint} />
+      <TextRail label="CARGO VAN" tint={tint} />
+    </G>
+  );
+}
+
+function TextRail({ label, tint }: { label: string; tint: string }) {
+  return (
+    <G>
+      <Rect x="18" y="22" width="82" height="13" rx="2" fill="rgba(255,255,255,0.03)" stroke={tint} strokeOpacity="0.18" />
+      <SvgText x="24" y="31" fill={tint} opacity="0.74" fontSize="7" fontWeight="700" letterSpacing="1">
+        {label}
+      </SvgText>
+      <Rect x="104" y="24" width="2" height="9" fill={tint} opacity="0.45" />
+      <Rect x="110" y="24" width="2" height="9" fill={tint} opacity="0.28" />
+      <Rect x="116" y="24" width="2" height="9" fill={tint} opacity="0.2" />
+      <Path d="M126 29 L230 29" stroke={tint} strokeOpacity="0.22" strokeWidth="1" />
+    </G>
   );
 }
