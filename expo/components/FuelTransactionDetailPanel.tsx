@@ -2,7 +2,7 @@ import {
   AlertTriangle, CheckCircle, Clock, DollarSign, Droplets, ExternalLink,
   FileSearch, Gauge, Lock, MapPin, ShieldAlert, X,
 } from "lucide-react-native";
-import React, { useMemo } from "react";
+import React from "react";
 import {
   Modal, Pressable, ScrollView, StyleSheet, Text, View,
 } from "react-native";
@@ -39,12 +39,10 @@ export default function FuelTransactionDetailPanel({ visible, transaction, onClo
   const vendor = VENDOR_LOGOS[transaction.vendorName] ?? { color: Colors.textDim, initials: transaction.vendorName.slice(0, 2).toUpperCase() };
 
   // Tank capacity for the truck (approximate from known fleet)
-  const tankCapacity = useMemo(() => {
-    const capacities: Record<string, number> = {
-      t1: 34, t2: 34, t3: 36, t4: 40, t5: 36,
-    };
-    return capacities[transaction.assetId] ?? 34;
-  }, [transaction.assetId]);
+  const capacities: Record<string, number> = {
+    t1: 34, t2: 34, t3: 36, t4: 40, t5: 36,
+  };
+  const tankCapacity = capacities[transaction.assetId] ?? 34;
 
   const overCapacity = transaction.gallonsPumped > tankCapacity;
   const overPct = Math.round(((transaction.gallonsPumped - tankCapacity) / tankCapacity) * 100);
